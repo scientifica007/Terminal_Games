@@ -36,6 +36,7 @@ You can also run any game directly:
 python3 -m games.tic_tac_toe
 python3 -m games.connect_four
 python3 -m games.minesweeper
+python3 -m games.game_2048
 ```
 
 ## Games
@@ -95,6 +96,32 @@ row col     reveal shorthand
 Q           quit
 ```
 
+### 2048
+
+A terminal version of the classic 4x4 sliding tile puzzle.
+
+Features:
+
+- Custom `S`, `X`, `C`, `W` movement controls.
+- Standard 4x4 board.
+- Equal tiles merge only once per move.
+- Score increases by the value of each newly merged tile.
+- New tiles are `2` most of the time and occasionally `4`.
+- Invalid or ineffective moves do not create a new tile.
+- Reaching 2048 is announced, but play may continue beyond it.
+- Automatic game-over detection when no legal move remains.
+- Replay and quit handling.
+
+2048 controls:
+
+```text
+S   move up
+X   move down
+C   move right
+W   move left
+Q   quit
+```
+
 ## Project structure
 
 ```text
@@ -103,10 +130,12 @@ Terminal_Games/
 ├── games/
 │   ├── __init__.py
 │   ├── connect_four.py
+│   ├── game_2048.py
 │   ├── minesweeper.py
 │   └── tic_tac_toe.py
 └── tests/
     ├── test_connect_four.py
+    ├── test_game_2048.py
     ├── test_minesweeper.py
     └── test_tic_tac_toe.py
 ```
@@ -125,4 +154,4 @@ A new game should expose a `main()` function and live in its own module under `g
 
 ## Roadmap
 
-Candidate terminal games include Hangman, 2048, Snake, Blackjack, Battleship, and terminal roguelikes.
+Candidate terminal games include Hangman, Snake, Blackjack, Battleship, and terminal roguelikes.
