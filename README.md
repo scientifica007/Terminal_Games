@@ -156,7 +156,7 @@ Q / Esc quit
 
 The controls are read directly while the game is running; do not press Enter after an arrow key.
 
-The complete engineering record of the Snake implementation—including failed approaches, terminal-input bugs, root causes, fixes, design reversals, and regression rules—is documented in [`docs/snake-development-retrospective.md`](docs/snake-development-retrospective.md).
+The complete engineering record of the Snake implementation—including failed approaches, terminal-input bugs, root causes, fixes, design reversals, regression rules, and lessons for future real-time terminal games—is documented in [`docs/snake-development-retrospective.md`](docs/snake-development-retrospective.md).
 
 ## Project structure
 
