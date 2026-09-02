@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from games.connect_four import main as connect_four
+from games.minesweeper import main as minesweeper
 from games.tic_tac_toe import main as tic_tac_toe
 
 Game = tuple[str, Callable[[], None]]
@@ -12,6 +13,7 @@ Game = tuple[str, Callable[[], None]]
 GAMES: dict[str, Game] = {
     "1": ("Tic-Tac-Toe", tic_tac_toe),
     "2": ("Connect Four", connect_four),
+    "3": ("Minesweeper", minesweeper),
 }
 
 
