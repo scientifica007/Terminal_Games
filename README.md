@@ -37,6 +37,7 @@ python3 -m games.tic_tac_toe
 python3 -m games.connect_four
 python3 -m games.minesweeper
 python3 -m games.game_2048
+python3 -m games.snake
 ```
 
 ## Games
@@ -122,6 +123,35 @@ W   move left
 Q   quit
 ```
 
+### Snake
+
+A real-time terminal Snake game with immediate keyboard input; movement does not require pressing Enter.
+
+Features:
+
+- 24x14 play field.
+- Custom `S`, `X`, `C`, `W` movement controls shared with 2048.
+- Three fixed speed levels: Relaxed, Normal, and Fast.
+- The snake grows by one cell for every food item eaten.
+- Score increases by 10 points per food item.
+- Collision detection for walls and the snake's own body.
+- Immediate 180-degree turns are blocked.
+- Fixed-timestep movement, so rapid key presses do not increase game speed.
+- ANSI redraw with terminal state restored after the round.
+- Uses only the Python standard library.
+
+Snake controls:
+
+```text
+S   move up
+X   move down
+C   move right
+W   move left
+Q   quit
+```
+
+The controls are read directly while the game is running; do not press Enter after a movement key.
+
 ## Project structure
 
 ```text
@@ -132,11 +162,13 @@ Terminal_Games/
 │   ├── connect_four.py
 │   ├── game_2048.py
 │   ├── minesweeper.py
+│   ├── snake.py
 │   └── tic_tac_toe.py
 └── tests/
     ├── test_connect_four.py
     ├── test_game_2048.py
     ├── test_minesweeper.py
+    ├── test_snake.py
     └── test_tic_tac_toe.py
 ```
 
@@ -154,4 +186,4 @@ A new game should expose a `main()` function and live in its own module under `g
 
 ## Roadmap
 
-Candidate terminal games include Hangman, Snake, Blackjack, Battleship, and terminal roguelikes.
+Candidate terminal games include Hangman, Blackjack, Battleship, and terminal roguelikes.
