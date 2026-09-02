@@ -8,8 +8,20 @@ import os
 import select
 import sys
 import time
-from typing import TextIO
+from typing import Any, TextIO
 
+from games.progress import (
+    ProgressDataError,
+    clear_save,
+    get_best_score,
+    load_state,
+    save_state,
+    update_best_score,
+)
+from games.session_menu import LOAD, NEW, QUIT, choose_session_action
+
+GAME_ID = "snake"
+SAVE_VERSION = 1
 WIDTH = 24
 HEIGHT = 14
 INITIAL_LENGTH = 3
@@ -54,6 +66,7 @@ WINDOWS_ARROW_KEYS = {
 }
 
 QUIT_KEYS = {"q", "ض", "escape", "\x03"}
+SAVE_KEYS = {"s", "س"}
 
 SPEEDS = {
     "1": ("Relaxed", 0.18),
@@ -115,6 +128,11 @@ def movement_interval(base_seconds: float, direction: Direction) -> float:
 def is_quit_key(key: str | None) -> bool:
     """Return True for supported quit inputs in English or Arabic layouts."""
     return key is not None and key.lower() in QUIT_KEYS
+
+
+def is_save_key(key: str | None) -> bool:
+    """Return True for the physical S key in English or Arabic layouts."""
+    return key is not None and key.lower() in SAVE_KEYS
 
 
 def next_head(head: Position, direction: Direction) -> Position:
@@ -204,7 +222,7 @@ def render_board(
     top = "+" + "-" * width + "+"
     lines = [
         "=== Snake ===",
-        "Controls: Arrow keys = move; Q / Esc = quit. Edges wrap to the opposite side.",
+        "Controls: Arrow keys = move; S = save; Q / Esc = quit. Edges wrap.",
         f"Score: {state.score}   Length: {len(state.snake)}"
         + (f"   {status}" if status else ""),
         top,
@@ -224,6 +242,81 @@ def render_board(
         lines.append("|" + "".join(row) + "|")
     lines.append(top)
     return "\n".join(lines)
+
+
+def serialize_session(state: GameState, speed_name: str) -> dict[str, Any]:
+    """Serialize a live Snake state and its selected speed."""
+    return {
+        "version": SAVE_VERSION,
+        "snake": [list(cell) for cell in state.snake],
+        "direction": list(state.direction),
+        "food": None if state.food is None else list(state.food),
+        "score": state.score,
+        "speed": speed_name,
+    }
+
+
+def _decode_position(value: Any, label: str) -> Position:
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or isinstance(value[0], bool)
+        or isinstance(value[1], bool)
+        or not isinstance(value[0], int)
+        or not isinstance(value[1], int)
+    ):
+        raise ValueError(f"Invalid saved {label}.")
+    position = (value[0], value[1])
+    if not (0 <= position[0] < WIDTH and 0 <= position[1] < HEIGHT):
+        raise ValueError(f"Saved {label} is outside the board.")
+    return position
+
+
+def _decode_direction(value: Any) -> Direction:
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or isinstance(value[0], bool)
+        or isinstance(value[1], bool)
+        or not isinstance(value[0], int)
+        or not isinstance(value[1], int)
+    ):
+        raise ValueError("Invalid saved direction.")
+    direction = (value[0], value[1])
+    if direction not in {UP, DOWN, LEFT, RIGHT}:
+        raise ValueError("Invalid saved direction.")
+    return direction
+
+
+def deserialize_session(state: dict[str, Any]) -> tuple[GameState, str, float]:
+    """Validate and restore a live Snake state."""
+    if state.get("version") != SAVE_VERSION:
+        raise ValueError("Unsupported Snake save version.")
+    raw_snake = state.get("snake")
+    if not isinstance(raw_snake, list) or not raw_snake:
+        raise ValueError("Invalid saved snake.")
+    snake = [_decode_position(cell, "snake cell") for cell in raw_snake]
+    if len(set(snake)) != len(snake):
+        raise ValueError("Saved snake overlaps itself.")
+
+    direction = _decode_direction(state.get("direction"))
+
+    raw_food = state.get("food")
+    food = None if raw_food is None else _decode_position(raw_food, "food")
+    if food in snake:
+        raise ValueError("Saved food overlaps the snake.")
+
+    score = state.get("score")
+    if isinstance(score, bool) or not isinstance(score, int) or score < 0:
+        raise ValueError("Invalid saved score.")
+
+    speed_name = state.get("speed")
+    speed_lookup = {name: delay for name, delay in SPEEDS.values()}
+    if speed_name not in speed_lookup:
+        raise ValueError("Invalid saved speed.")
+
+    restored = GameState(snake=snake, direction=direction, food=food, score=score, alive=True)
+    return restored, str(speed_name), speed_lookup[str(speed_name)]
 
 
 def decode_arrow_sequence(sequence: bytes | str) -> str | None:
@@ -390,16 +483,22 @@ def _choose_speed() -> tuple[str, float] | None:
         print("Choose 1, 2, or 3.")
 
 
-def play_round(rng: Random | None = None) -> bool:
+def play_round(
+    rng: Random | None = None,
+    saved: tuple[GameState, str, float] | None = None,
+) -> bool:
     """Play one real-time round. Return False when the player asks to quit."""
-    speed = _choose_speed()
-    if speed is None:
-        return False
-
-    speed_name, tick_seconds = speed
     generator = rng or Random()
-    state = new_game(rng=generator)
-    status = f"Speed: {speed_name}"
+    if saved is None:
+        speed = _choose_speed()
+        if speed is None:
+            return False
+        speed_name, tick_seconds = speed
+        state = new_game(rng=generator)
+    else:
+        state, speed_name, tick_seconds = saved
+
+    status = f"Speed: {speed_name} | Best: {get_best_score(GAME_ID)}"
 
     if not sys.stdin.isatty():
         print("Snake requires an interactive terminal (TTY).")
@@ -423,6 +522,16 @@ def play_round(rng: Random | None = None) -> bool:
                         key = reader.read_key(remaining)
                         if is_quit_key(key):
                             return False
+                        if is_save_key(key):
+                            try:
+                                save_state(GAME_ID, serialize_session(state, speed_name))
+                                status = (
+                                    f"Saved | Speed: {speed_name} | "
+                                    f"Best: {get_best_score(GAME_ID)}"
+                                )
+                            except ProgressDataError:
+                                status = "Save failed"
+                            continue
                         if key in DIRECTION_KEYS:
                             pending_direction = change_direction(state.direction, key)
 
@@ -441,6 +550,13 @@ def play_round(rng: Random | None = None) -> bool:
 
                     if ate_food:
                         state.score += FOOD_SCORE
+                        if update_best_score(GAME_ID, state.score):
+                            status = f"New Best! {state.score} | Speed: {speed_name}"
+                        else:
+                            status = (
+                                f"Speed: {speed_name} | "
+                                f"Best: {get_best_score(GAME_ID)}"
+                            )
                         state.food = place_food(state.snake, rng=generator)
                         if state.food is None:
                             print(
@@ -462,11 +578,25 @@ def play_round(rng: Random | None = None) -> bool:
     finally:
         print("\033[?25h", flush=True)
 
+    clear_save(GAME_ID)
+    update_best_score(GAME_ID, state.score)
     if state.food is None:
         print(f"\nYou filled the entire board. Final score: {state.score}")
     else:
         print(f"\nYou hit your own body. Final score: {state.score}")
+    print(f"Best Score: {get_best_score(GAME_ID)}")
     return True
+
+
+def _load_saved_game() -> tuple[GameState, str, float] | None:
+    state = load_state(GAME_ID)
+    if state is None:
+        return None
+    try:
+        return deserialize_session(state)
+    except ValueError as exc:
+        print(f"\nSaved game is invalid: {exc}")
+        return None
 
 
 def main() -> None:
@@ -474,14 +604,28 @@ def main() -> None:
     print("=== Snake ===")
     print("Move in real time with the arrow keys. No Enter needed.")
     print("Eat * to grow. Crossing an edge wraps you to the opposite side.")
-    print("Avoid your own body. Press Q or Esc to quit.")
+    print("Avoid your own body. Press S to save, Q or Esc to quit.")
 
     while True:
-        if not play_round():
+        action = choose_session_action(GAME_ID, "Snake")
+        if action == QUIT:
+            print("Goodbye.")
+            return
+
+        saved = None
+        if action == LOAD:
+            saved = _load_saved_game()
+            if saved is None:
+                continue
+            print("\nSaved game loaded.")
+        elif action != NEW:
+            continue
+
+        if not play_round(saved=saved):
             print("\nGoodbye.")
             return
 
-        again = input("\nPlay again? [y/N]: ").strip().lower()
+        again = input("\nPlay another round? [y/N]: ").strip().lower()
         if again not in {"y", "yes"}:
             print("Goodbye.")
             return

@@ -3,7 +3,20 @@
 from __future__ import annotations
 
 from math import inf
+from typing import Any
 
+from games.progress import (
+    ProgressDataError,
+    clear_save,
+    get_best_score,
+    load_state,
+    save_state,
+    update_best_score,
+)
+from games.session_menu import LOAD, NEW, QUIT, choose_session_action
+
+GAME_ID = "tic_tac_toe"
+SAVE_VERSION = 1
 HUMAN = "X"
 COMPUTER = "O"
 EMPTY = " "
@@ -44,6 +57,38 @@ def render_board(board: list[str]) -> str:
     ]
     rows = [f" {cells[i]} | {cells[i + 1]} | {cells[i + 2]} " for i in (0, 3, 6)]
     return "\n---+---+---\n".join(rows)
+
+
+def round_score(result: str | None) -> int:
+    """Return the score awarded for one completed round.
+
+    The optimal computer makes a human win exceptional; a draw therefore earns
+    a smaller but meaningful score rather than being treated as zero progress.
+    """
+    if result == HUMAN:
+        return 100
+    if result == DRAW:
+        return 25
+    return 0
+
+
+def serialize_state(board: list[str]) -> dict[str, Any]:
+    """Serialize one in-progress board for the shared persistence layer."""
+    return {"version": SAVE_VERSION, "board": board[:]}
+
+
+def deserialize_state(state: dict[str, Any]) -> list[str]:
+    """Validate and restore a saved board."""
+    if state.get("version") != SAVE_VERSION:
+        raise ValueError("Unsupported Tic-Tac-Toe save version.")
+    board = state.get("board")
+    if not isinstance(board, list) or len(board) != 9:
+        raise ValueError("Invalid Tic-Tac-Toe saved board.")
+    if any(cell not in {HUMAN, COMPUTER, EMPTY} for cell in board):
+        raise ValueError("Invalid Tic-Tac-Toe saved symbols.")
+    if winner(board) is not None:
+        raise ValueError("Saved Tic-Tac-Toe game is already finished.")
+    return list(board)
 
 
 def _score_terminal(result: str | None) -> int | None:
@@ -101,13 +146,15 @@ def best_computer_move(board: list[str]) -> int:
     return best_move
 
 
-def _read_human_move(board: list[str]) -> int | None:
+def _read_human_move(board: list[str]) -> int | str | None:
     while True:
-        raw = input("Choose a square [1-9] or Q to quit: ").strip().lower()
+        raw = input("Choose [1-9], SAVE, or Q to quit: ").strip().lower()
         if raw in {"q", "quit", "exit"}:
             return None
+        if raw in {"save", "sv"}:
+            return "save"
         if not raw.isdigit():
-            print("Enter a number from 1 to 9.")
+            print("Enter a number from 1 to 9, SAVE, or Q.")
             continue
 
         move = int(raw) - 1
@@ -120,10 +167,11 @@ def _read_human_move(board: list[str]) -> int | None:
         return move
 
 
-def play_round() -> bool:
+def play_round(board: list[str] | None = None) -> bool:
     """Play one round. Return False when the player asks to quit."""
-    board = [EMPTY] * 9
-    print("\nYou are X. The computer is O. You move first.\n")
+    board = [EMPTY] * 9 if board is None else board[:]
+    print("\nYou are X. The computer is O. You move first.")
+    print("Type SAVE on your turn to store this exact board.\n")
 
     while winner(board) is None:
         print(render_board(board))
@@ -132,6 +180,15 @@ def play_round() -> bool:
         human_move = _read_human_move(board)
         if human_move is None:
             return False
+        if human_move == "save":
+            try:
+                save_state(GAME_ID, serialize_state(board))
+                print("\nGame saved.\n")
+            except ProgressDataError as exc:
+                print(f"\nCould not save game: {exc}\n")
+            continue
+
+        assert isinstance(human_move, int)
         board[human_move] = HUMAN
 
         result = winner(board)
@@ -144,24 +201,56 @@ def play_round() -> bool:
 
     print(render_board(board))
     result = winner(board)
+    score = round_score(result)
+    new_record = update_best_score(GAME_ID, score)
+    clear_save(GAME_ID)
+
     if result == HUMAN:
         print("\nYou win.")
     elif result == COMPUTER:
         print("\nComputer wins.")
     else:
         print("\nDraw.")
+    print(f"Score: {score} | Best Score: {get_best_score(GAME_ID)}")
+    if new_record:
+        print("New Best Score!")
     return True
+
+
+def _load_saved_board() -> list[str] | None:
+    state = load_state(GAME_ID)
+    if state is None:
+        return None
+    try:
+        return deserialize_state(state)
+    except ValueError as exc:
+        print(f"\nSaved game is invalid: {exc}")
+        return None
 
 
 def main() -> None:
     """Run the interactive terminal game."""
     print("=== Tic-Tac-Toe ===")
     while True:
-        if not play_round():
+        action = choose_session_action(GAME_ID, "Tic-Tac-Toe")
+        if action == QUIT:
+            print("Goodbye.")
+            return
+
+        board = None
+        if action == LOAD:
+            board = _load_saved_board()
+            if board is None:
+                continue
+            print("\nSaved game loaded.")
+        elif action != NEW:
+            continue
+
+        if not play_round(board):
             print("\nGoodbye.")
             return
 
-        again = input("\nPlay again? [y/N]: ").strip().lower()
+        again = input("\nPlay another round? [y/N]: ").strip().lower()
         if again not in {"y", "yes"}:
             print("Goodbye.")
             return
