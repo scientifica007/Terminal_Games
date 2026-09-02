@@ -5,7 +5,20 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 import random
+from typing import Any
 
+from games.progress import (
+    ProgressDataError,
+    clear_save,
+    get_best_score,
+    load_state,
+    save_state,
+    update_best_score,
+)
+from games.session_menu import LOAD, NEW, QUIT, choose_session_action
+
+GAME_ID = "minesweeper"
+SAVE_VERSION = 1
 Coord = tuple[int, int]
 HIDDEN = "·"
 FLAG = "F"
@@ -96,8 +109,6 @@ class MinesweeperGame:
             if (row, col) not in safe_zone
         ]
 
-        # Tiny custom boards may not have enough room to protect all neighbors.
-        # The clicked cell itself is always protected.
         if len(candidates) < self.mine_count:
             candidates = [
                 (row, col)
@@ -201,6 +212,110 @@ class MinesweeperGame:
         return "\n".join(lines)
 
 
+def minesweeper_score(difficulty: Difficulty, actions: int) -> int:
+    """Score a successful clear using board complexity and action efficiency."""
+    if actions < 0:
+        raise ValueError("actions cannot be negative.")
+    safe_cells = difficulty.rows * difficulty.cols - difficulty.mines
+    base = safe_cells * 10 + difficulty.mines * 25
+    return max(base // 4, base - actions * 5)
+
+
+def serialize_state(
+    game: MinesweeperGame,
+    difficulty: Difficulty,
+    actions: int,
+) -> dict[str, Any]:
+    return {
+        "version": SAVE_VERSION,
+        "difficulty": {
+            "name": difficulty.name,
+            "rows": difficulty.rows,
+            "cols": difficulty.cols,
+            "mines": difficulty.mines,
+        },
+        "actions": actions,
+        "mines_placed": game.mines_placed,
+        "mines": [list(cell) for cell in sorted(game.mines)],
+        "revealed": [list(cell) for cell in sorted(game.revealed)],
+        "flags": [list(cell) for cell in sorted(game.flags)],
+    }
+
+
+def _decode_coords(value: Any, label: str) -> set[Coord]:
+    if not isinstance(value, list):
+        raise ValueError(f"Invalid saved {label}.")
+    result: set[Coord] = set()
+    for cell in value:
+        if (
+            not isinstance(cell, list)
+            or len(cell) != 2
+            or isinstance(cell[0], bool)
+            or isinstance(cell[1], bool)
+            or not isinstance(cell[0], int)
+            or not isinstance(cell[1], int)
+        ):
+            raise ValueError(f"Invalid saved {label} coordinate.")
+        result.add((cell[0], cell[1]))
+    return result
+
+
+def deserialize_state(state: dict[str, Any]) -> tuple[MinesweeperGame, Difficulty, int]:
+    if state.get("version") != SAVE_VERSION:
+        raise ValueError("Unsupported Minesweeper save version.")
+    raw_difficulty = state.get("difficulty")
+    if not isinstance(raw_difficulty, dict):
+        raise ValueError("Invalid saved difficulty.")
+    try:
+        difficulty = Difficulty(
+            str(raw_difficulty["name"]),
+            int(raw_difficulty["rows"]),
+            int(raw_difficulty["cols"]),
+            int(raw_difficulty["mines"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid saved difficulty.") from exc
+    if difficulty not in DIFFICULTIES.values():
+        raise ValueError("Saved difficulty is not supported.")
+
+    actions = state.get("actions")
+    if isinstance(actions, bool) or not isinstance(actions, int) or actions < 0:
+        raise ValueError("Invalid saved action count.")
+
+    mines_placed = state.get("mines_placed")
+    if not isinstance(mines_placed, bool):
+        raise ValueError("Invalid saved mine-placement state.")
+    mines = _decode_coords(state.get("mines", []), "mines")
+    revealed = _decode_coords(state.get("revealed", []), "revealed")
+    flags = _decode_coords(state.get("flags", []), "flags")
+
+    if mines_placed:
+        if len(mines) != difficulty.mines:
+            raise ValueError("Saved mine count is invalid.")
+        game = MinesweeperGame(
+            difficulty.rows,
+            difficulty.cols,
+            difficulty.mines,
+            mines=mines,
+        )
+    else:
+        if mines:
+            raise ValueError("Unplaced save cannot contain mines.")
+        game = MinesweeperGame(difficulty.rows, difficulty.cols, difficulty.mines)
+
+    for cell in mines | revealed | flags:
+        if not game.in_bounds(*cell):
+            raise ValueError("Saved coordinate is outside the board.")
+    if revealed & flags:
+        raise ValueError("Saved cells cannot be both revealed and flagged.")
+
+    game.revealed = revealed
+    game.flags = flags
+    if game.is_won():
+        raise ValueError("Saved Minesweeper game is already finished.")
+    return game, difficulty, actions
+
+
 def parse_command(raw: str) -> tuple[str, int | None, int | None]:
     """Parse a terminal command into action and zero-based coordinates."""
     parts = raw.strip().lower().split()
@@ -211,8 +326,11 @@ def parse_command(raw: str) -> tuple[str, int | None, int | None]:
         if len(parts) != 1:
             raise ValueError("Quit command takes no coordinates.")
         return "quit", None, None
+    if parts[0] in {"save", "sv"}:
+        if len(parts) != 1:
+            raise ValueError("Save command takes no coordinates.")
+        return "save", None, None
 
-    # Two bare numbers are shorthand for revealing a cell.
     if len(parts) == 2 and all(part.isdigit() for part in parts):
         return "reveal", int(parts[0]) - 1, int(parts[1]) - 1
 
@@ -223,14 +341,14 @@ def parse_command(raw: str) -> tuple[str, int | None, int | None]:
         elif action in {"f", "flag"}:
             normalized = "flag"
         else:
-            raise ValueError("Use R row col, F row col, or Q.")
+            raise ValueError("Use R row col, F row col, SAVE, or Q.")
 
         if not parts[1].isdigit() or not parts[2].isdigit():
             raise ValueError("Row and column must be numbers.")
 
         return normalized, int(parts[1]) - 1, int(parts[2]) - 1
 
-    raise ValueError("Use R row col, F row col, or Q.")
+    raise ValueError("Use R row col, F row col, SAVE, or Q.")
 
 
 def choose_difficulty() -> Difficulty | None:
@@ -253,9 +371,13 @@ def choose_difficulty() -> Difficulty | None:
         print("Invalid selection.")
 
 
-def play_round(difficulty: Difficulty) -> bool:
+def play_round(
+    difficulty: Difficulty,
+    game: MinesweeperGame | None = None,
+    actions: int = 0,
+) -> bool:
     """Play one round. Return False if the player quits the game."""
-    game = MinesweeperGame(
+    game = game or MinesweeperGame(
         difficulty.rows,
         difficulty.cols,
         difficulty.mines,
@@ -265,14 +387,17 @@ def play_round(difficulty: Difficulty) -> bool:
         f"\n{difficulty.name}: {difficulty.rows}x{difficulty.cols}, "
         f"{difficulty.mines} mines"
     )
-    print("Commands: R row col = reveal, F row col = flag, Q = quit")
+    print("Commands: R row col = reveal, F row col = flag, SAVE = save, Q = quit")
     print("Shortcut: entering just 'row col' reveals that cell.")
     print("The first revealed cell is always safe.\n")
 
     while not game.lost and not game.is_won():
         print(game.render())
         remaining = game.mine_count - len(game.flags)
-        print(f"\nMines: {game.mine_count} | Flags: {len(game.flags)} | Unflagged estimate: {remaining}")
+        print(
+            f"\nMines: {game.mine_count} | Flags: {len(game.flags)} "
+            f"| Unflagged estimate: {remaining} | Actions: {actions}"
+        )
 
         try:
             action, row, col = parse_command(input("Move: "))
@@ -282,6 +407,13 @@ def play_round(difficulty: Difficulty) -> bool:
 
         if action == "quit":
             return False
+        if action == "save":
+            try:
+                save_state(GAME_ID, serialize_state(game, difficulty, actions))
+                print("\nGame saved.\n")
+            except ProgressDataError as exc:
+                print(f"\nCould not save game: {exc}\n")
+            continue
 
         assert row is not None and col is not None
         if not game.in_bounds(row, col):
@@ -296,6 +428,7 @@ def play_round(difficulty: Difficulty) -> bool:
                 print("\nThat cell is already revealed.\n")
             else:
                 placed = game.toggle_flag(row, col)
+                actions += 1
                 print("\nFlag placed.\n" if placed else "\nFlag removed.\n")
             continue
 
@@ -303,15 +436,36 @@ def play_round(difficulty: Difficulty) -> bool:
             print("\nRemove the flag before revealing that cell.\n")
             continue
 
+        before = len(game.revealed)
         game.reveal(row, col)
+        if len(game.revealed) != before or game.lost:
+            actions += 1
         print()
 
     print(game.render(reveal_all=True))
+    clear_save(GAME_ID)
     if game.lost:
+        score = 0
         print("\nBoom. You hit a mine.")
     else:
+        score = minesweeper_score(difficulty, actions)
+        new_record = update_best_score(GAME_ID, score)
         print("\nYou cleared the minefield. You win.")
+        if new_record:
+            print("New Best Score!")
+    print(f"Score: {score} | Best Score: {get_best_score(GAME_ID)}")
     return True
+
+
+def _load_saved_game() -> tuple[MinesweeperGame, Difficulty, int] | None:
+    state = load_state(GAME_ID)
+    if state is None:
+        return None
+    try:
+        return deserialize_state(state)
+    except ValueError as exc:
+        print(f"\nSaved game is invalid: {exc}")
+        return None
 
 
 def main() -> None:
@@ -319,16 +473,32 @@ def main() -> None:
     print("=== Minesweeper ===")
 
     while True:
-        difficulty = choose_difficulty()
-        if difficulty is None:
+        action = choose_session_action(GAME_ID, "Minesweeper")
+        if action == QUIT:
             print("Goodbye.")
             return
 
-        if not play_round(difficulty):
+        if action == LOAD:
+            loaded = _load_saved_game()
+            if loaded is None:
+                continue
+            game, difficulty, actions = loaded
+            print("\nSaved game loaded.")
+        elif action == NEW:
+            difficulty = choose_difficulty()
+            if difficulty is None:
+                print("Goodbye.")
+                return
+            game = None
+            actions = 0
+        else:
+            continue
+
+        if not play_round(difficulty, game, actions):
             print("\nGoodbye.")
             return
 
-        again = input("\nPlay again? [y/N]: ").strip().lower()
+        again = input("\nPlay another round? [y/N]: ").strip().lower()
         if again not in {"y", "yes"}:
             print("Goodbye.")
             return
