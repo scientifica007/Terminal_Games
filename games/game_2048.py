@@ -3,8 +3,20 @@
 from __future__ import annotations
 
 from random import Random
-from typing import Iterable
+from typing import Any, Iterable
 
+from games.progress import (
+    ProgressDataError,
+    clear_save,
+    get_best_score,
+    load_state,
+    save_state,
+    update_best_score,
+)
+from games.session_menu import LOAD, NEW, QUIT, choose_session_action
+
+GAME_ID = "2048"
+SAVE_VERSION = 1
 SIZE = 4
 TARGET = 2048
 DIRECTIONS = {"s": "up", "w": "left", "x": "down", "c": "right"}
@@ -154,40 +166,100 @@ def render_board(board: Board, score: int) -> str:
     return "\n".join(lines)
 
 
+def serialize_state(board: Board, score: int, target_announced: bool) -> dict[str, Any]:
+    return {
+        "version": SAVE_VERSION,
+        "board": _copy_board(board),
+        "score": score,
+        "target_announced": target_announced,
+    }
+
+
+def deserialize_state(state: dict[str, Any]) -> tuple[Board, int, bool]:
+    if state.get("version") != SAVE_VERSION:
+        raise ValueError("Unsupported 2048 save version.")
+    board = state.get("board")
+    score = state.get("score")
+    target_announced = state.get("target_announced")
+    if isinstance(score, bool) or not isinstance(score, int) or score < 0:
+        raise ValueError("Invalid saved score.")
+    if not isinstance(target_announced, bool):
+        raise ValueError("Invalid saved target state.")
+    if not isinstance(board, list) or len(board) != SIZE:
+        raise ValueError("Invalid saved 2048 board.")
+
+    restored: Board = []
+    for row in board:
+        if not isinstance(row, list) or len(row) != SIZE:
+            raise ValueError("Invalid saved 2048 board row.")
+        restored_row: list[int] = []
+        for value in row:
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError("Invalid saved tile value.")
+            if value != 0 and (value < 2 or value & (value - 1)):
+                raise ValueError("Saved tile is not a power of two.")
+            restored_row.append(value)
+        restored.append(restored_row)
+    if not can_move(restored):
+        raise ValueError("Saved 2048 game is already over.")
+    return restored, score, target_announced
+
+
 def _read_move() -> str | None:
     while True:
-        raw = input("Move [S=up, X=down, C=right, W=left] or Q to quit: ").strip().lower()
+        raw = input(
+            "Move [S=up, X=down, C=right, W=left], SAVE, or Q: "
+        ).strip().lower()
         if raw in {"q", "quit", "exit"}:
             return None
+        if raw in {"save", "sv"}:
+            return "save"
         if raw in DIRECTIONS:
             return raw
-        print("Use S (up), X (down), C (right), or W (left).")
+        print("Use S, X, C, W, SAVE, or Q.")
 
 
-def play_round(rng: Random | None = None) -> bool:
+def play_round(
+    rng: Random | None = None,
+    saved: tuple[Board, int, bool] | None = None,
+) -> bool:
     """Play one round. Return False when the player asks to quit."""
     generator = rng or Random()
-    board = new_board()
-    add_random_tile(board, generator)
-    add_random_tile(board, generator)
+    if saved is None:
+        board = new_board()
+        add_random_tile(board, generator)
+        add_random_tile(board, generator)
+        score = 0
+        target_announced = False
+    else:
+        board, score, target_announced = saved
+        board = _copy_board(board)
 
-    score = 0
-    target_announced = False
-
-    print("\nControls: S=up, X=down, C=right, W=left. Equal tiles merge once per move.\n")
+    print("\nControls: S=up, X=down, C=right, W=left. Equal tiles merge once per move.")
+    print("Type SAVE to store the current board.\n")
 
     while True:
         print(render_board(board, score))
+        print(f"Best Score: {get_best_score(GAME_ID)}")
         print()
 
         if not can_move(board):
+            clear_save(GAME_ID)
+            update_best_score(GAME_ID, score)
             print("No legal moves remain. Game over.")
-            print(f"Final score: {score}")
+            print(f"Final score: {score} | Best Score: {get_best_score(GAME_ID)}")
             return True
 
         command = _read_move()
         if command is None:
             return False
+        if command == "save":
+            try:
+                save_state(GAME_ID, serialize_state(board, score, target_announced))
+                print("\nGame saved.\n")
+            except ProgressDataError as exc:
+                print(f"\nCould not save game: {exc}\n")
+            continue
 
         moved_board, gained, changed = move(board, command)
         if not changed:
@@ -196,6 +268,9 @@ def play_round(rng: Random | None = None) -> bool:
 
         board = moved_board
         score += gained
+        if gained:
+            if update_best_score(GAME_ID, score):
+                print("\nNew Best Score!\n")
         add_random_tile(board, generator)
 
         if not target_announced and max_tile(board) >= TARGET:
@@ -203,15 +278,40 @@ def play_round(rng: Random | None = None) -> bool:
             print(f"\nYou reached {TARGET}! You can keep playing.\n")
 
 
+def _load_saved_game() -> tuple[Board, int, bool] | None:
+    state = load_state(GAME_ID)
+    if state is None:
+        return None
+    try:
+        return deserialize_state(state)
+    except ValueError as exc:
+        print(f"\nSaved game is invalid: {exc}")
+        return None
+
+
 def main() -> None:
     """Run the interactive terminal game."""
     print("=== 2048 ===")
     while True:
-        if not play_round():
+        action = choose_session_action(GAME_ID, "2048")
+        if action == QUIT:
+            print("Goodbye.")
+            return
+
+        saved = None
+        if action == LOAD:
+            saved = _load_saved_game()
+            if saved is None:
+                continue
+            print("\nSaved game loaded.")
+        elif action != NEW:
+            continue
+
+        if not play_round(saved=saved):
             print("\nGoodbye.")
             return
 
-        again = input("\nPlay again? [y/N]: ").strip().lower()
+        again = input("\nPlay another round? [y/N]: ").strip().lower()
         if again not in {"y", "yes"}:
             print("Goodbye.")
             return
