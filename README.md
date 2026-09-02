@@ -130,11 +130,12 @@ A real-time terminal Snake game with immediate keyboard input; movement does not
 Features:
 
 - 24x14 play field.
-- Custom `S`, `X`, `C`, `W` movement controls shared with 2048.
+- Arrow-key movement: Up, Down, Left, and Right.
 - Three fixed speed levels: Relaxed, Normal, and Fast.
+- Crossing any edge wraps the snake to the opposite side instead of causing a wall collision.
 - The snake grows by one cell for every food item eaten.
 - Score increases by 10 points per food item.
-- Collision detection for walls and the snake's own body.
+- Self-collision remains lethal, including a collision immediately after wrapping across an edge.
 - Immediate 180-degree turns are blocked.
 - Fixed-timestep movement, so rapid key presses do not increase game speed.
 - ANSI redraw with terminal state restored after the round.
@@ -143,14 +144,14 @@ Features:
 Snake controls:
 
 ```text
-S   move up
-X   move down
-C   move right
-W   move left
+↑   move up
+↓   move down
+→   move right
+←   move left
 Q   quit
 ```
 
-The controls are read directly while the game is running; do not press Enter after a movement key.
+The arrow keys are read directly while the game is running; do not press Enter after a direction.
 
 ## Project structure
 
