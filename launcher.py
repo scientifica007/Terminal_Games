@@ -7,6 +7,7 @@ from collections.abc import Callable
 from games.connect_four import main as connect_four
 from games.game_2048 import main as game_2048
 from games.minesweeper import main as minesweeper
+from games.snake import main as snake
 from games.tic_tac_toe import main as tic_tac_toe
 
 Game = tuple[str, Callable[[], None]]
@@ -16,6 +17,7 @@ GAMES: dict[str, Game] = {
     "2": ("Connect Four", connect_four),
     "3": ("Minesweeper", minesweeper),
     "4": ("2048", game_2048),
+    "5": ("Snake", snake),
 }
 
 
