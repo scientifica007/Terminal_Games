@@ -10,11 +10,16 @@ import sys
 import time
 from typing import TextIO
 
-WIDTH = 24
-HEIGHT = 14
+WIDTH = 18
+HEIGHT = 18
+CELL_WIDTH = 2
 INITIAL_LENGTH = 3
 FOOD_SCORE = 10
-VERTICAL_TICK_MULTIPLIER = 2.0
+
+EMPTY_CELL = " " * CELL_WIDTH
+HEAD_CELL = "@" * CELL_WIDTH
+BODY_CELL = "o" * CELL_WIDTH
+FOOD_CELL = "*" * CELL_WIDTH
 
 UP = (0, -1)
 DOWN = (0, 1)
@@ -98,17 +103,16 @@ def change_direction(current: Direction, key: str) -> Direction:
 
 
 def movement_interval(base_seconds: float, direction: Direction) -> float:
-    """Return the tick interval adjusted for terminal cell aspect ratio.
+    """Return the same tick duration for every movement direction.
 
-    Terminal character cells are usually much taller than they are wide. A
-    vertical logical step therefore looks faster than a horizontal step even
-    when both use the same timestep. Keep horizontal timing unchanged and slow
-    vertical movement so perceived speed is closer on both axes.
+    Cells are rendered two terminal columns wide so one horizontal logical step
+    is visually comparable to one vertical logical step. Timing therefore no
+    longer needs direction-specific compensation.
     """
     if base_seconds <= 0:
         raise ValueError("Base tick duration must be positive.")
-    if direction in {UP, DOWN}:
-        return base_seconds * VERTICAL_TICK_MULTIPLIER
+    if direction not in {UP, DOWN, LEFT, RIGHT}:
+        raise ValueError("Unknown movement direction.")
     return base_seconds
 
 
@@ -198,10 +202,10 @@ def render_board(
     height: int = HEIGHT,
     status: str = "",
 ) -> str:
-    """Render the current game state as a terminal frame."""
+    """Render the game with approximately square terminal cells."""
     snake_cells = set(state.snake[1:])
     head = state.snake[0]
-    top = "+" + "-" * width + "+"
+    top = "+" + "-" * (width * CELL_WIDTH) + "+"
     lines = [
         "=== Snake ===",
         "Controls: Arrow keys = move; Q / Esc = quit. Edges wrap to the opposite side.",
@@ -214,13 +218,13 @@ def render_board(
         for x in range(width):
             position = (x, y)
             if position == head:
-                row.append("@")
+                row.append(HEAD_CELL)
             elif position in snake_cells:
-                row.append("o")
+                row.append(BODY_CELL)
             elif position == state.food:
-                row.append("*")
+                row.append(FOOD_CELL)
             else:
-                row.append(" ")
+                row.append(EMPTY_CELL)
         lines.append("|" + "".join(row) + "|")
     lines.append(top)
     return "\n".join(lines)
@@ -377,7 +381,7 @@ class KeyReader:
 def _choose_speed() -> tuple[str, float] | None:
     print("Choose speed:")
     for key, (name, delay) in SPEEDS.items():
-        print(f"{key}. {name} ({delay:.2f}s horizontal tick)")
+        print(f"{key}. {name} ({delay:.2f}s/tick in every direction)")
     print("Q. Quit")
 
     while True:
@@ -409,11 +413,17 @@ def play_round(rng: Random | None = None) -> bool:
     try:
         try:
             with KeyReader() as reader:
-                next_tick = time.monotonic() + movement_interval(tick_seconds, state.direction)
+                next_tick = time.monotonic() + movement_interval(
+                    tick_seconds, state.direction
+                )
                 pending_direction = state.direction
 
                 while state.alive:
-                    print("\033[H" + render_board(state, status=status), end="", flush=True)
+                    print(
+                        "\033[H" + render_board(state, status=status),
+                        end="",
+                        flush=True,
+                    )
 
                     while True:
                         remaining = next_tick - time.monotonic()
@@ -424,7 +434,9 @@ def play_round(rng: Random | None = None) -> bool:
                         if is_quit_key(key):
                             return False
                         if key in DIRECTION_KEYS:
-                            pending_direction = change_direction(state.direction, key)
+                            pending_direction = change_direction(
+                                state.direction, key
+                            )
 
                     state.direction = pending_direction
                     snake, ate_food, alive = advance_snake(
@@ -434,7 +446,9 @@ def play_round(rng: Random | None = None) -> bool:
                     )
                     state.snake = snake
                     state.alive = alive
-                    next_tick += movement_interval(tick_seconds, state.direction)
+                    next_tick += movement_interval(
+                        tick_seconds, state.direction
+                    )
 
                     if not alive:
                         break
@@ -445,7 +459,9 @@ def play_round(rng: Random | None = None) -> bool:
                         if state.food is None:
                             print(
                                 "\033[H"
-                                + render_board(state, status="Board cleared!"),
+                                + render_board(
+                                    state, status="Board cleared!"
+                                ),
                                 end="",
                                 flush=True,
                             )
@@ -453,7 +469,8 @@ def play_round(rng: Random | None = None) -> bool:
 
                 if not state.alive:
                     print(
-                        "\033[H" + render_board(state, status="Self collision"),
+                        "\033[H"
+                        + render_board(state, status="Self collision"),
                         end="",
                         flush=True,
                     )
@@ -473,7 +490,11 @@ def main() -> None:
     """Run Snake."""
     print("=== Snake ===")
     print("Move in real time with the arrow keys. No Enter needed.")
-    print("Eat * to grow. Crossing an edge wraps you to the opposite side.")
+    print(
+        "The square board uses double-width terminal cells so horizontal "
+        "and vertical motion match visually and temporally."
+    )
+    print("Eat ** to grow. Crossing an edge wraps you to the opposite side.")
     print("Avoid your own body. Press Q or Esc to quit.")
 
     while True:
