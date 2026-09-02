@@ -102,7 +102,7 @@ A terminal version of the classic 4x4 sliding tile puzzle.
 
 Features:
 
-- `W`, `A`, `S`, `D` movement controls.
+- Custom `S`, `X`, `C`, `W` movement controls.
 - Standard 4x4 board.
 - Equal tiles merge only once per move.
 - Score increases by the value of each newly merged tile.
@@ -115,10 +115,10 @@ Features:
 2048 controls:
 
 ```text
-W   move up
-A   move left
-S   move down
-D   move right
+S   move up
+X   move down
+C   move right
+W   move left
 Q   quit
 ```
 
