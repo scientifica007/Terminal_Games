@@ -226,6 +226,16 @@ def decode_arrow_sequence(sequence: bytes | str) -> str | None:
     return None
 
 
+def is_complete_arrow_sequence(sequence: bytes | bytearray) -> bool:
+    """Return True when a raw POSIX escape sequence contains a full arrow key."""
+    raw = bytes(sequence)
+    return (
+        len(raw) >= 3
+        and raw[:2] in {b"\x1b[", b"\x1bO"}
+        and raw[-1:] in {b"A", b"B", b"C", b"D"}
+    )
+
+
 class KeyReader:
     """Read single keys/arrows without Enter and restore terminal state."""
 
@@ -288,11 +298,7 @@ class KeyReader:
                 break
             sequence.extend(chunk)
 
-            if (
-                len(sequence) >= 3
-                and sequence[:2] in {b"\x1b[", b"\x1bO"}
-                and sequence[-1:] in {b"A", b"B", b"C", b"D"}
-            ):
+            if is_complete_arrow_sequence(sequence):
                 break
 
         return decode_arrow_sequence(bytes(sequence))
