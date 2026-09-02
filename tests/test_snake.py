@@ -2,6 +2,7 @@ import random
 import unittest
 
 from games.snake import (
+    ANSI_ARROW_KEYS,
     DOWN,
     LEFT,
     RIGHT,
@@ -16,6 +17,7 @@ from games.snake import (
     next_head,
     place_food,
     render_board,
+    wrap_position,
 )
 
 
@@ -30,18 +32,24 @@ class SnakeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             initial_snake(4, 2, 3)
 
-    def test_custom_control_mapping(self):
-        self.assertEqual(DIRECTION_KEYS["s"], UP)
-        self.assertEqual(DIRECTION_KEYS["x"], DOWN)
-        self.assertEqual(DIRECTION_KEYS["c"], RIGHT)
-        self.assertEqual(DIRECTION_KEYS["w"], LEFT)
+    def test_arrow_direction_mapping(self):
+        self.assertEqual(DIRECTION_KEYS["up"], UP)
+        self.assertEqual(DIRECTION_KEYS["down"], DOWN)
+        self.assertEqual(DIRECTION_KEYS["right"], RIGHT)
+        self.assertEqual(DIRECTION_KEYS["left"], LEFT)
+
+    def test_ansi_arrow_sequences(self):
+        self.assertEqual(ANSI_ARROW_KEYS["\x1b[A"], "up")
+        self.assertEqual(ANSI_ARROW_KEYS["\x1b[B"], "down")
+        self.assertEqual(ANSI_ARROW_KEYS["\x1b[C"], "right")
+        self.assertEqual(ANSI_ARROW_KEYS["\x1b[D"], "left")
 
     def test_change_direction_accepts_perpendicular_turn(self):
-        self.assertEqual(change_direction(RIGHT, "s"), UP)
+        self.assertEqual(change_direction(RIGHT, "up"), UP)
 
     def test_change_direction_blocks_reverse_turn(self):
-        self.assertEqual(change_direction(RIGHT, "w"), RIGHT)
-        self.assertEqual(change_direction(UP, "x"), UP)
+        self.assertEqual(change_direction(RIGHT, "left"), RIGHT)
+        self.assertEqual(change_direction(UP, "down"), UP)
 
     def test_unknown_key_keeps_direction(self):
         self.assertEqual(change_direction(DOWN, "z"), DOWN)
@@ -49,6 +57,12 @@ class SnakeTests(unittest.TestCase):
     def test_next_head(self):
         self.assertEqual(next_head((5, 5), UP), (5, 4))
         self.assertEqual(next_head((5, 5), RIGHT), (6, 5))
+
+    def test_wrap_position_across_all_edges(self):
+        self.assertEqual(wrap_position((-1, 2), 10, 6), (9, 2))
+        self.assertEqual(wrap_position((10, 2), 10, 6), (0, 2))
+        self.assertEqual(wrap_position((3, -1), 10, 6), (3, 5))
+        self.assertEqual(wrap_position((3, 6), 10, 6), (3, 0))
 
     def test_advance_moves_without_growth(self):
         snake = [(3, 2), (2, 2), (1, 2)]
@@ -64,16 +78,29 @@ class SnakeTests(unittest.TestCase):
         self.assertTrue(ate)
         self.assertEqual(result, [(4, 2), (3, 2), (2, 2), (1, 2)])
 
-    def test_wall_collision_ends_round(self):
+    def test_horizontal_edge_wraps(self):
         snake = [(0, 2), (1, 2), (2, 2)]
         result, ate, alive = advance_snake(snake, LEFT, None, 10, 10)
-        self.assertFalse(alive)
+        self.assertTrue(alive)
         self.assertFalse(ate)
-        self.assertEqual(result, snake)
+        self.assertEqual(result[0], (9, 2))
+
+    def test_vertical_edge_wraps(self):
+        snake = [(4, 0), (4, 1), (4, 2)]
+        result, ate, alive = advance_snake(snake, UP, None, 10, 6)
+        self.assertTrue(alive)
+        self.assertFalse(ate)
+        self.assertEqual(result[0], (4, 5))
 
     def test_self_collision_ends_round(self):
         snake = [(2, 2), (2, 3), (1, 3), (1, 2), (1, 1), (2, 1)]
         _, ate, alive = advance_snake(snake, DOWN, None, 10, 10)
+        self.assertFalse(alive)
+        self.assertFalse(ate)
+
+    def test_wrapped_self_collision_still_ends_round(self):
+        snake = [(0, 2), (9, 2), (9, 3), (0, 3)]
+        _, ate, alive = advance_snake(snake, LEFT, None, 10, 10)
         self.assertFalse(alive)
         self.assertFalse(ate)
 
@@ -100,7 +127,7 @@ class SnakeTests(unittest.TestCase):
         self.assertIsNotNone(state.food)
         self.assertNotIn(state.food, state.snake)
 
-    def test_rendering_contains_head_body_food_and_score(self):
+    def test_rendering_contains_head_body_food_score_and_wrap_hint(self):
         state = GameState(
             snake=[(2, 1), (1, 1), (0, 1)],
             direction=RIGHT,
@@ -113,6 +140,8 @@ class SnakeTests(unittest.TestCase):
         self.assertIn("*", rendered)
         self.assertIn("Score: 20", rendered)
         self.assertIn("Normal", rendered)
+        self.assertIn("Arrow keys", rendered)
+        self.assertIn("wrap", rendered)
 
 
 if __name__ == "__main__":
