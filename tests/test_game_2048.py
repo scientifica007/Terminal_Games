@@ -2,6 +2,7 @@ import random
 import unittest
 
 from games.game_2048 import (
+    DIRECTIONS,
     add_random_tile,
     can_move,
     empty_cells,
@@ -18,6 +19,12 @@ class Game2048Tests(unittest.TestCase):
         board = new_board()
         self.assertEqual(len(board), 4)
         self.assertTrue(all(value == 0 for row in board for value in row))
+
+    def test_custom_direction_controls(self):
+        self.assertEqual(
+            DIRECTIONS,
+            {"s": "up", "x": "down", "c": "right", "w": "left"},
+        )
 
     def test_merge_line_compresses_and_merges(self):
         result, gained = merge_line([2, 0, 2, 4])
@@ -41,7 +48,7 @@ class Game2048Tests(unittest.TestCase):
             [4, 4, 8, 8],
             [0, 0, 0, 2],
         ]
-        result, gained, changed = move(board, "left")
+        result, gained, changed = move(board, "w")
         self.assertTrue(changed)
         self.assertEqual(gained, 32)
         self.assertEqual(result[0], [4, 4, 0, 0])
@@ -51,7 +58,7 @@ class Game2048Tests(unittest.TestCase):
 
     def test_move_right(self):
         board = [[2, 0, 2, 4]] + [[0, 0, 0, 0] for _ in range(3)]
-        result, gained, changed = move(board, "d")
+        result, gained, changed = move(board, "c")
         self.assertTrue(changed)
         self.assertEqual(gained, 4)
         self.assertEqual(result[0], [0, 0, 4, 4])
@@ -63,7 +70,7 @@ class Game2048Tests(unittest.TestCase):
             [2, 0, 0, 0],
             [4, 0, 0, 0],
         ]
-        result, gained, changed = move(board, "up")
+        result, gained, changed = move(board, "s")
         self.assertTrue(changed)
         self.assertEqual(gained, 4)
         self.assertEqual([row[0] for row in result], [4, 4, 0, 0])
@@ -75,7 +82,7 @@ class Game2048Tests(unittest.TestCase):
             [2, 0, 0, 0],
             [4, 0, 0, 0],
         ]
-        result, gained, changed = move(board, "s")
+        result, gained, changed = move(board, "x")
         self.assertTrue(changed)
         self.assertEqual(gained, 4)
         self.assertEqual([row[0] for row in result], [0, 0, 4, 4])
