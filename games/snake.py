@@ -272,6 +272,22 @@ def _decode_position(value: Any, label: str) -> Position:
     return position
 
 
+def _decode_direction(value: Any) -> Direction:
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or isinstance(value[0], bool)
+        or isinstance(value[1], bool)
+        or not isinstance(value[0], int)
+        or not isinstance(value[1], int)
+    ):
+        raise ValueError("Invalid saved direction.")
+    direction = (value[0], value[1])
+    if direction not in {UP, DOWN, LEFT, RIGHT}:
+        raise ValueError("Invalid saved direction.")
+    return direction
+
+
 def deserialize_session(state: dict[str, Any]) -> tuple[GameState, str, float]:
     """Validate and restore a live Snake state."""
     if state.get("version") != SAVE_VERSION:
@@ -283,9 +299,7 @@ def deserialize_session(state: dict[str, Any]) -> tuple[GameState, str, float]:
     if len(set(snake)) != len(snake):
         raise ValueError("Saved snake overlaps itself.")
 
-    direction = _decode_position(state.get("direction"), "direction")
-    if direction not in {UP, DOWN, LEFT, RIGHT}:
-        raise ValueError("Invalid saved direction.")
+    direction = _decode_direction(state.get("direction"))
 
     raw_food = state.get("food")
     food = None if raw_food is None else _decode_position(raw_food, "food")
