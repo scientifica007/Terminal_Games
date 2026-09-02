@@ -18,16 +18,23 @@ No third-party packages are required for the current games.
 
 ## Run
 
-From the repository root:
+On Linux or macOS, from the repository root:
+
+```bash
+python3 launcher.py
+```
+
+On systems where Python is exposed as `python`, you can use:
 
 ```bash
 python launcher.py
 ```
 
-You can also run a game directly:
+You can also run either game directly:
 
 ```bash
-python -m games.tic_tac_toe
+python3 -m games.tic_tac_toe
+python3 -m games.connect_four
 ```
 
 ## Games
@@ -44,6 +51,20 @@ Features:
 - Optimal computer strategy.
 - Replay support.
 
+### Connect Four
+
+A single-player Connect Four implementation on the classic 6-by-7 board.
+
+Features:
+
+- Numbered 1-7 column controls.
+- Human plays `X`; computer plays `O`.
+- Easy, Medium, and Hard difficulty levels.
+- Medium and Hard use depth-limited Minimax with alpha-beta pruning.
+- Center-aware move ordering and heuristic board evaluation.
+- Detection of horizontal, vertical, and diagonal wins.
+- Full-column validation, replay, and quit handling.
+
 ## Project structure
 
 ```text
@@ -51,8 +72,10 @@ Terminal_Games/
 ├── launcher.py
 ├── games/
 │   ├── __init__.py
+│   ├── connect_four.py
 │   └── tic_tac_toe.py
 └── tests/
+    ├── test_connect_four.py
     └── test_tic_tac_toe.py
 ```
 
@@ -61,7 +84,7 @@ Terminal_Games/
 Run all tests with:
 
 ```bash
-python -m unittest discover -s tests -v
+python3 -m unittest discover -s tests -v
 ```
 
 ## Design rule for new games
@@ -70,4 +93,4 @@ A new game should expose a `main()` function and live in its own module under `g
 
 ## Roadmap
 
-Candidate terminal games include Snake, Minesweeper, Hangman, 2048, Connect Four, Blackjack, Battleship, and terminal roguelikes.
+Candidate terminal games include Minesweeper, Hangman, 2048, Snake, Blackjack, Battleship, and terminal roguelikes.
