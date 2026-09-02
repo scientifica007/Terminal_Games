@@ -30,11 +30,12 @@ On systems where Python is exposed as `python`, you can use:
 python launcher.py
 ```
 
-You can also run either game directly:
+You can also run any game directly:
 
 ```bash
 python3 -m games.tic_tac_toe
 python3 -m games.connect_four
+python3 -m games.minesweeper
 ```
 
 ## Games
@@ -65,6 +66,35 @@ Features:
 - Detection of horizontal, vertical, and diagonal wins.
 - Full-column validation, replay, and quit handling.
 
+### Minesweeper
+
+A classic Minesweeper implementation with coordinate-driven terminal controls.
+
+Difficulty levels:
+
+- Beginner: 9x9 with 10 mines.
+- Intermediate: 16x16 with 40 mines.
+- Expert: 16x30 with 99 mines.
+
+Features:
+
+- First revealed cell is always safe; on standard boards its neighboring cells are protected too.
+- Automatic flood-fill opening of connected empty areas.
+- Flags for suspected mines.
+- One-based row and column coordinates.
+- Reveal shorthand by entering `row col`.
+- Full board reveal after a win or loss.
+- Replay and quit handling.
+
+Minesweeper commands:
+
+```text
+R row col   reveal a cell
+F row col   place or remove a flag
+row col     reveal shorthand
+Q           quit
+```
+
 ## Project structure
 
 ```text
@@ -73,9 +103,11 @@ Terminal_Games/
 ├── games/
 │   ├── __init__.py
 │   ├── connect_four.py
+│   ├── minesweeper.py
 │   └── tic_tac_toe.py
 └── tests/
     ├── test_connect_four.py
+    ├── test_minesweeper.py
     └── test_tic_tac_toe.py
 ```
 
@@ -93,4 +125,4 @@ A new game should expose a `main()` function and live in its own module under `g
 
 ## Roadmap
 
-Candidate terminal games include Minesweeper, Hangman, 2048, Snake, Blackjack, Battleship, and terminal roguelikes.
+Candidate terminal games include Hangman, 2048, Snake, Blackjack, Battleship, and terminal roguelikes.
