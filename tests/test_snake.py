@@ -14,6 +14,7 @@ from games.snake import (
     change_direction,
     decode_arrow_sequence,
     initial_snake,
+    is_complete_arrow_sequence,
     new_game,
     next_head,
     place_food,
@@ -60,6 +61,11 @@ class SnakeTests(unittest.TestCase):
     def test_invalid_escape_sequence_returns_none(self):
         self.assertIsNone(decode_arrow_sequence(b"\x1b[Z"))
         self.assertIsNone(decode_arrow_sequence(b"x"))
+
+    def test_bytearray_arrow_completion_is_hash_safe(self):
+        self.assertTrue(is_complete_arrow_sequence(bytearray(b"\x1b[A")))
+        self.assertTrue(is_complete_arrow_sequence(bytearray(b"\x1bOD")))
+        self.assertFalse(is_complete_arrow_sequence(bytearray(b"\x1b[")))
 
     def test_change_direction_accepts_perpendicular_turn(self):
         self.assertEqual(change_direction(RIGHT, "up"), UP)
