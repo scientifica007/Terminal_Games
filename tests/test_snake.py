@@ -13,8 +13,11 @@ from games.snake import (
     advance_snake,
     change_direction,
     decode_arrow_sequence,
+    decode_text_key,
     initial_snake,
     is_complete_arrow_sequence,
+    is_quit_key,
+    movement_interval,
     new_game,
     next_head,
     place_food,
@@ -66,6 +69,27 @@ class SnakeTests(unittest.TestCase):
         self.assertTrue(is_complete_arrow_sequence(bytearray(b"\x1b[A")))
         self.assertTrue(is_complete_arrow_sequence(bytearray(b"\x1bOD")))
         self.assertFalse(is_complete_arrow_sequence(bytearray(b"\x1b[")))
+
+    def test_regular_key_decoder_supports_ascii_and_arabic_utf8(self):
+        self.assertEqual(decode_text_key(b"Q"), "q")
+        self.assertEqual(decode_text_key("ض".encode("utf-8")), "ض")
+        self.assertIsNone(decode_text_key(b"\xff"))
+
+    def test_quit_keys_support_english_arabic_escape_and_ctrl_c(self):
+        self.assertTrue(is_quit_key("q"))
+        self.assertTrue(is_quit_key("Q"))
+        self.assertTrue(is_quit_key("ض"))
+        self.assertTrue(is_quit_key("escape"))
+        self.assertTrue(is_quit_key("\x03"))
+        self.assertFalse(is_quit_key("up"))
+        self.assertFalse(is_quit_key(None))
+
+    def test_vertical_timing_compensates_terminal_cell_aspect_ratio(self):
+        base = 0.18
+        self.assertAlmostEqual(movement_interval(base, RIGHT), base)
+        self.assertAlmostEqual(movement_interval(base, LEFT), base)
+        self.assertAlmostEqual(movement_interval(base, UP), base * 2)
+        self.assertAlmostEqual(movement_interval(base, DOWN), base * 2)
 
     def test_change_direction_accepts_perpendicular_turn(self):
         self.assertEqual(change_direction(RIGHT, "up"), UP)
@@ -165,6 +189,7 @@ class SnakeTests(unittest.TestCase):
         self.assertIn("Normal", rendered)
         self.assertIn("Arrow keys", rendered)
         self.assertIn("wrap", rendered)
+        self.assertIn("Esc", rendered)
 
 
 if __name__ == "__main__":
