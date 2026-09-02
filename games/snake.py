@@ -21,10 +21,24 @@ LEFT = (-1, 0)
 RIGHT = (1, 0)
 
 DIRECTION_KEYS = {
-    "s": UP,
-    "x": DOWN,
-    "w": LEFT,
-    "c": RIGHT,
+    "up": UP,
+    "down": DOWN,
+    "left": LEFT,
+    "right": RIGHT,
+}
+
+ANSI_ARROW_KEYS = {
+    "\x1b[A": "up",
+    "\x1b[B": "down",
+    "\x1b[C": "right",
+    "\x1b[D": "left",
+}
+
+WINDOWS_ARROW_KEYS = {
+    "H": "up",
+    "P": "down",
+    "M": "right",
+    "K": "left",
 }
 
 SPEEDS = {
@@ -60,7 +74,7 @@ def initial_snake(
 
 
 def change_direction(current: Direction, key: str) -> Direction:
-    """Apply a movement key while preventing an immediate 180-degree turn."""
+    """Apply an arrow direction while preventing an immediate 180-degree turn."""
     requested = DIRECTION_KEYS.get(key.lower())
     if requested is None:
         return current
@@ -70,8 +84,15 @@ def change_direction(current: Direction, key: str) -> Direction:
 
 
 def next_head(head: Position, direction: Direction) -> Position:
-    """Return the next head position for a direction."""
+    """Return the unwrapped next head position for a direction."""
     return head[0] + direction[0], head[1] + direction[1]
+
+
+def wrap_position(position: Position, width: int, height: int) -> Position:
+    """Wrap a position across the board edges."""
+    if width <= 0 or height <= 0:
+        raise ValueError("Board dimensions must be positive.")
+    return position[0] % width, position[1] % height
 
 
 def advance_snake(
@@ -81,19 +102,16 @@ def advance_snake(
     width: int = WIDTH,
     height: int = HEIGHT,
 ) -> tuple[list[Position], bool, bool]:
-    """Advance one tick.
+    """Advance one tick and wrap across board edges.
 
-    Return (new_snake, ate_food, alive). Moving into the current tail is legal
+    Return (new_snake, ate_food, alive). The walls are portals: crossing one
+    edge enters from the opposite edge. Moving into the current tail is legal
     when no food is eaten because the tail vacates during the same tick.
     """
     if not snake:
         raise ValueError("Snake cannot be empty.")
 
-    new_head = next_head(snake[0], direction)
-    x, y = new_head
-    if not (0 <= x < width and 0 <= y < height):
-        return snake[:], False, False
-
+    new_head = wrap_position(next_head(snake[0], direction), width, height)
     ate_food = food is not None and new_head == food
     occupied = snake if ate_food else snake[:-1]
     if new_head in occupied:
@@ -152,7 +170,7 @@ def render_board(
     top = "+" + "-" * width + "+"
     lines = [
         "=== Snake ===",
-        "Controls: S=up, X=down, C=right, W=left, Q=quit",
+        "Controls: Arrow keys = move, Q = quit. Edges wrap to the opposite side.",
         f"Score: {state.score}   Length: {len(state.snake)}"
         + (f"   {status}" if status else ""),
         top,
@@ -175,7 +193,7 @@ def render_board(
 
 
 class KeyReader:
-    """Read single keys without requiring Enter and restore terminal state."""
+    """Read single keys/arrows without Enter and restore terminal state."""
 
     def __init__(self, stream: TextIO = sys.stdin) -> None:
         self.stream = stream
@@ -199,21 +217,39 @@ class KeyReader:
             termios.tcsetattr(self._fd, termios.TCSADRAIN, self._settings)
 
     def read_key(self, timeout: float) -> str | None:
-        """Return one pressed key, or None when timeout expires."""
+        """Return an arrow name, a regular key, or None when timeout expires."""
         if os.name == "nt":
             import msvcrt
 
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
                 if msvcrt.kbhit():
-                    return msvcrt.getwch().lower()
+                    first = msvcrt.getwch()
+                    if first in {"\x00", "\xe0"}:
+                        return WINDOWS_ARROW_KEYS.get(msvcrt.getwch())
+                    return first.lower()
                 time.sleep(min(0.01, timeout))
             return None
 
         ready, _, _ = select.select([self.stream], [], [], timeout)
         if not ready:
             return None
-        return self.stream.read(1).lower()
+
+        first = self.stream.read(1)
+        if first != "\x1b":
+            return first.lower()
+
+        sequence = first
+        deadline = time.monotonic() + 0.02
+        while len(sequence) < 3:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            ready, _, _ = select.select([self.stream], [], [], remaining)
+            if not ready:
+                break
+            sequence += self.stream.read(1)
+        return ANSI_ARROW_KEYS.get(sequence)
 
 
 def _choose_speed() -> tuple[str, float] | None:
@@ -250,28 +286,24 @@ def play_round(rng: Random | None = None) -> bool:
     print("\033[2J\033[?25l", end="", flush=True)
     try:
         with KeyReader() as reader:
+            next_tick = time.monotonic() + tick_seconds
+            pending_direction = state.direction
+
             while state.alive:
                 print("\033[H" + render_board(state, status=status), end="", flush=True)
 
-                deadline = time.monotonic() + tick_seconds
-                direction_changed = False
                 while True:
-                    remaining = deadline - time.monotonic()
+                    remaining = next_tick - time.monotonic()
                     if remaining <= 0:
                         break
 
                     key = reader.read_key(remaining)
-                    if key is None:
-                        break
                     if key in {"q", "\x03"}:
                         return False
+                    if key in DIRECTION_KEYS:
+                        pending_direction = change_direction(state.direction, key)
 
-                    if not direction_changed and key in DIRECTION_KEYS:
-                        new_direction = change_direction(state.direction, key)
-                        if new_direction != state.direction:
-                            state.direction = new_direction
-                            direction_changed = True
-
+                state.direction = pending_direction
                 snake, ate_food, alive = advance_snake(
                     state.snake,
                     state.direction,
@@ -279,6 +311,7 @@ def play_round(rng: Random | None = None) -> bool:
                 )
                 state.snake = snake
                 state.alive = alive
+                next_tick += tick_seconds
 
                 if not alive:
                     break
@@ -297,7 +330,7 @@ def play_round(rng: Random | None = None) -> bool:
 
             if not state.alive:
                 print(
-                    "\033[H" + render_board(state, status="Game over"),
+                    "\033[H" + render_board(state, status="Self collision"),
                     end="",
                     flush=True,
                 )
@@ -307,15 +340,16 @@ def play_round(rng: Random | None = None) -> bool:
     if state.food is None:
         print(f"\nYou filled the entire board. Final score: {state.score}")
     else:
-        print(f"\nCollision. Final score: {state.score}")
+        print(f"\nYou hit your own body. Final score: {state.score}")
     return True
 
 
 def main() -> None:
     """Run Snake."""
     print("=== Snake ===")
-    print("Move in real time: S=up, X=down, C=right, W=left. No Enter needed.")
-    print("Eat * to grow. Avoid the walls and your own body.")
+    print("Move in real time with the arrow keys. No Enter needed.")
+    print("Eat * to grow. Crossing an edge wraps you to the opposite side.")
+    print("Avoid your own body. Press Q to quit.")
 
     while True:
         if not play_round():
