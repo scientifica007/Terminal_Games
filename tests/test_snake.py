@@ -12,6 +12,7 @@ from games.snake import (
     GameState,
     advance_snake,
     change_direction,
+    decode_arrow_sequence,
     initial_snake,
     new_game,
     next_head,
@@ -43,6 +44,22 @@ class SnakeTests(unittest.TestCase):
         self.assertEqual(ANSI_ARROW_KEYS["\x1b[B"], "down")
         self.assertEqual(ANSI_ARROW_KEYS["\x1b[C"], "right")
         self.assertEqual(ANSI_ARROW_KEYS["\x1b[D"], "left")
+
+    def test_ss3_arrow_sequences(self):
+        self.assertEqual(decode_arrow_sequence(b"\x1bOA"), "up")
+        self.assertEqual(decode_arrow_sequence(b"\x1bOB"), "down")
+        self.assertEqual(decode_arrow_sequence(b"\x1bOC"), "right")
+        self.assertEqual(decode_arrow_sequence(b"\x1bOD"), "left")
+
+    def test_modified_csi_arrow_sequences(self):
+        self.assertEqual(decode_arrow_sequence(b"\x1b[1;2A"), "up")
+        self.assertEqual(decode_arrow_sequence(b"\x1b[1;5B"), "down")
+        self.assertEqual(decode_arrow_sequence(b"\x1b[1;3C"), "right")
+        self.assertEqual(decode_arrow_sequence(b"\x1b[1;4D"), "left")
+
+    def test_invalid_escape_sequence_returns_none(self):
+        self.assertIsNone(decode_arrow_sequence(b"\x1b[Z"))
+        self.assertIsNone(decode_arrow_sequence(b"x"))
 
     def test_change_direction_accepts_perpendicular_turn(self):
         self.assertEqual(change_direction(RIGHT, "up"), UP)
