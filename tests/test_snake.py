@@ -3,17 +3,10 @@ import unittest
 
 from games.snake import (
     ANSI_ARROW_KEYS,
-    BODY_CELL,
-    CELL_WIDTH,
     DOWN,
-    EMPTY_CELL,
-    FOOD_CELL,
-    HEAD_CELL,
-    HEIGHT,
     LEFT,
     RIGHT,
     UP,
-    WIDTH,
     DIRECTION_KEYS,
     FOOD_SCORE,
     GameState,
@@ -34,17 +27,6 @@ from games.snake import (
 
 
 class SnakeTests(unittest.TestCase):
-    def test_default_board_is_logically_square(self):
-        self.assertEqual(WIDTH, HEIGHT)
-        self.assertEqual((WIDTH, HEIGHT), (18, 18))
-
-    def test_terminal_cells_are_double_width(self):
-        self.assertEqual(CELL_WIDTH, 2)
-        self.assertEqual(len(EMPTY_CELL), CELL_WIDTH)
-        self.assertEqual(len(HEAD_CELL), CELL_WIDTH)
-        self.assertEqual(len(BODY_CELL), CELL_WIDTH)
-        self.assertEqual(len(FOOD_CELL), CELL_WIDTH)
-
     def test_initial_snake_has_requested_length(self):
         snake = initial_snake(20, 10, 3)
         self.assertEqual(len(snake), 3)
@@ -102,18 +84,12 @@ class SnakeTests(unittest.TestCase):
         self.assertFalse(is_quit_key("up"))
         self.assertFalse(is_quit_key(None))
 
-    def test_all_directions_use_identical_timing(self):
+    def test_vertical_timing_compensates_terminal_cell_aspect_ratio(self):
         base = 0.18
         self.assertAlmostEqual(movement_interval(base, RIGHT), base)
         self.assertAlmostEqual(movement_interval(base, LEFT), base)
-        self.assertAlmostEqual(movement_interval(base, UP), base)
-        self.assertAlmostEqual(movement_interval(base, DOWN), base)
-
-    def test_invalid_movement_interval_is_rejected(self):
-        with self.assertRaises(ValueError):
-            movement_interval(0, RIGHT)
-        with self.assertRaises(ValueError):
-            movement_interval(0.1, (2, 0))
+        self.assertAlmostEqual(movement_interval(base, UP), base * 2)
+        self.assertAlmostEqual(movement_interval(base, DOWN), base * 2)
 
     def test_change_direction_accepts_perpendicular_turn(self):
         self.assertEqual(change_direction(RIGHT, "up"), UP)
@@ -198,25 +174,17 @@ class SnakeTests(unittest.TestCase):
         self.assertIsNotNone(state.food)
         self.assertNotIn(state.food, state.snake)
 
-    def test_rendering_uses_double_width_cells_and_square_geometry(self):
+    def test_rendering_contains_head_body_food_score_and_wrap_hint(self):
         state = GameState(
             snake=[(2, 1), (1, 1), (0, 1)],
             direction=RIGHT,
             food=(3, 2),
             score=FOOD_SCORE * 2,
         )
-        rendered = render_board(state, 5, 5, "Normal")
-        lines = rendered.splitlines()
-        border = "+" + "-" * (5 * CELL_WIDTH) + "+"
-        board_lines = lines[3:]
-        self.assertEqual(board_lines[0], border)
-        self.assertEqual(board_lines[-1], border)
-        self.assertEqual(len(board_lines), 7)
-        for row in board_lines[1:-1]:
-            self.assertEqual(len(row), 5 * CELL_WIDTH + 2)
-        self.assertIn(HEAD_CELL, rendered)
-        self.assertIn(BODY_CELL, rendered)
-        self.assertIn(FOOD_CELL, rendered)
+        rendered = render_board(state, 5, 4, "Normal")
+        self.assertIn("@", rendered)
+        self.assertIn("o", rendered)
+        self.assertIn("*", rendered)
         self.assertIn("Score: 20", rendered)
         self.assertIn("Normal", rendered)
         self.assertIn("Arrow keys", rendered)

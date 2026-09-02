@@ -129,19 +129,17 @@ A real-time terminal Snake game with immediate keyboard input; movement does not
 
 Features:
 
-- Square 18x18 logical play field.
-- Each logical cell is rendered two terminal columns wide, compensating for the tall aspect ratio of typical monospace terminal character cells.
-- Head, body, food, and empty spaces all occupy the same two-column cell footprint (`@@`, `oo`, `**`, and two spaces).
-- Horizontal and vertical movement use exactly the same fixed timestep and move exactly one logical cell per tick.
+- 24x14 play field.
 - Keyboard arrow controls, read directly from the terminal without Enter.
 - Supports common POSIX CSI/SS3 arrow escape sequences and Windows arrow-key input.
 - Three speed levels: Relaxed, Normal, and Fast.
+- Horizontal speed values are preserved; vertical ticks are slowed by a 2x terminal-cell aspect-ratio compensation so movement looks more consistent on typical terminal fonts.
 - The snake grows by one cell for every food item eaten.
 - Score increases by 10 points per food item.
 - Crossing any edge wraps the snake to the opposite side.
 - Self-collision remains lethal, including after wrapping across an edge.
 - Immediate 180-degree turns are blocked.
-- Rapid key presses do not increase game speed.
+- Fixed-timestep movement, so rapid key presses do not increase game speed.
 - `Q`, `Esc`, and `Ctrl+C` can exit cleanly; the Arabic physical-Q character `ض` is also recognized when an Arabic keyboard layout is active.
 - ANSI redraw with terminal state restored after the round.
 - Uses only the Python standard library.
