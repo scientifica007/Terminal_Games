@@ -132,24 +132,26 @@ Features:
 - 24x14 play field.
 - Keyboard arrow controls, read directly from the terminal without Enter.
 - Supports common POSIX CSI/SS3 arrow escape sequences and Windows arrow-key input.
-- Three fixed speed levels: Relaxed, Normal, and Fast.
+- Three speed levels: Relaxed, Normal, and Fast.
+- Horizontal speed values are preserved; vertical ticks are slowed by a 2x terminal-cell aspect-ratio compensation so movement looks more consistent on typical terminal fonts.
 - The snake grows by one cell for every food item eaten.
 - Score increases by 10 points per food item.
 - Crossing any edge wraps the snake to the opposite side.
 - Self-collision remains lethal, including after wrapping across an edge.
 - Immediate 180-degree turns are blocked.
 - Fixed-timestep movement, so rapid key presses do not increase game speed.
+- `Q`, `Esc`, and `Ctrl+C` can exit cleanly; the Arabic physical-Q character `ض` is also recognized when an Arabic keyboard layout is active.
 - ANSI redraw with terminal state restored after the round.
 - Uses only the Python standard library.
 
 Snake controls:
 
 ```text
-↑   move up
-↓   move down
-→   move right
-←   move left
-Q   quit
+↑       move up
+↓       move down
+→       move right
+←       move left
+Q / Esc quit
 ```
 
 The controls are read directly while the game is running; do not press Enter after an arrow key.
