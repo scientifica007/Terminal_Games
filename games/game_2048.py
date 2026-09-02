@@ -7,7 +7,7 @@ from typing import Iterable
 
 SIZE = 4
 TARGET = 2048
-DIRECTIONS = {"w": "up", "a": "left", "s": "down", "d": "right"}
+DIRECTIONS = {"s": "up", "w": "left", "x": "down", "c": "right"}
 
 Board = list[list[int]]
 
@@ -156,12 +156,12 @@ def render_board(board: Board, score: int) -> str:
 
 def _read_move() -> str | None:
     while True:
-        raw = input("Move [W/A/S/D] or Q to quit: ").strip().lower()
+        raw = input("Move [S=up, X=down, C=right, W=left] or Q to quit: ").strip().lower()
         if raw in {"q", "quit", "exit"}:
             return None
         if raw in DIRECTIONS:
             return raw
-        print("Use W, A, S, or D.")
+        print("Use S (up), X (down), C (right), or W (left).")
 
 
 def play_round(rng: Random | None = None) -> bool:
@@ -174,7 +174,7 @@ def play_round(rng: Random | None = None) -> bool:
     score = 0
     target_announced = False
 
-    print("\nUse W/A/S/D to slide every tile. Equal tiles merge once per move.\n")
+    print("\nControls: S=up, X=down, C=right, W=left. Equal tiles merge once per move.\n")
 
     while True:
         print(render_board(board, score))
