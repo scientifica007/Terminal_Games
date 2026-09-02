@@ -14,6 +14,7 @@ WIDTH = 24
 HEIGHT = 14
 INITIAL_LENGTH = 3
 FOOD_SCORE = 10
+VERTICAL_TICK_MULTIPLIER = 2.0
 
 UP = (0, -1)
 DOWN = (0, 1)
@@ -51,6 +52,8 @@ WINDOWS_ARROW_KEYS = {
     "M": "right",
     "K": "left",
 }
+
+QUIT_KEYS = {"q", "ض", "escape", "\x03"}
 
 SPEEDS = {
     "1": ("Relaxed", 0.18),
@@ -92,6 +95,26 @@ def change_direction(current: Direction, key: str) -> Direction:
     if requested == (-current[0], -current[1]):
         return current
     return requested
+
+
+def movement_interval(base_seconds: float, direction: Direction) -> float:
+    """Return the tick interval adjusted for terminal cell aspect ratio.
+
+    Terminal character cells are usually much taller than they are wide. A
+    vertical logical step therefore looks faster than a horizontal step even
+    when both use the same timestep. Keep horizontal timing unchanged and slow
+    vertical movement so perceived speed is closer on both axes.
+    """
+    if base_seconds <= 0:
+        raise ValueError("Base tick duration must be positive.")
+    if direction in {UP, DOWN}:
+        return base_seconds * VERTICAL_TICK_MULTIPLIER
+    return base_seconds
+
+
+def is_quit_key(key: str | None) -> bool:
+    """Return True for supported quit inputs in English or Arabic layouts."""
+    return key is not None and key.lower() in QUIT_KEYS
 
 
 def next_head(head: Position, direction: Direction) -> Position:
@@ -181,7 +204,7 @@ def render_board(
     top = "+" + "-" * width + "+"
     lines = [
         "=== Snake ===",
-        "Controls: Arrow keys = move, Q = quit. Edges wrap to the opposite side.",
+        "Controls: Arrow keys = move; Q / Esc = quit. Edges wrap to the opposite side.",
         f"Score: {state.score}   Length: {len(state.snake)}"
         + (f"   {status}" if status else ""),
         top,
@@ -226,6 +249,27 @@ def decode_arrow_sequence(sequence: bytes | str) -> str | None:
     return None
 
 
+def decode_text_key(sequence: bytes) -> str | None:
+    """Decode one regular UTF-8 key collected from the raw terminal."""
+    try:
+        text = sequence.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return text.lower() or None
+
+
+def _utf8_length(first_byte: int) -> int:
+    if first_byte < 0x80:
+        return 1
+    if first_byte & 0xE0 == 0xC0:
+        return 2
+    if first_byte & 0xF0 == 0xE0:
+        return 3
+    if first_byte & 0xF8 == 0xF0:
+        return 4
+    return 1
+
+
 def is_complete_arrow_sequence(sequence: bytes | bytearray) -> bool:
     """Return True when a raw POSIX escape sequence contains a full arrow key."""
     raw = bytes(sequence)
@@ -260,6 +304,26 @@ class KeyReader:
 
             termios.tcsetattr(self._fd, termios.TCSADRAIN, self._settings)
 
+    def _read_utf8_key(self, fd: int, first: bytes) -> str | None:
+        expected = _utf8_length(first[0])
+        if expected == 1:
+            return decode_text_key(first)
+
+        sequence = bytearray(first)
+        deadline = time.monotonic() + 0.04
+        while len(sequence) < expected:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            ready, _, _ = select.select([fd], [], [], remaining)
+            if not ready:
+                break
+            chunk = os.read(fd, expected - len(sequence))
+            if not chunk:
+                break
+            sequence.extend(chunk)
+        return decode_text_key(bytes(sequence))
+
     def read_key(self, timeout: float) -> str | None:
         """Return an arrow name, a regular key, or None when timeout expires."""
         if os.name == "nt":
@@ -271,6 +335,8 @@ class KeyReader:
                     first = msvcrt.getwch()
                     if first in {"\x00", "\xe0"}:
                         return WINDOWS_ARROW_KEYS.get(msvcrt.getwch())
+                    if first == "\x1b":
+                        return "escape"
                     return first.lower()
                 time.sleep(min(0.01, timeout))
             return None
@@ -281,8 +347,10 @@ class KeyReader:
             return None
 
         first = os.read(fd, 1)
+        if not first:
+            return None
         if first != b"\x1b":
-            return first.decode("utf-8", errors="ignore").lower() or None
+            return self._read_utf8_key(fd, first)
 
         sequence = bytearray(first)
         deadline = time.monotonic() + 0.04
@@ -301,18 +369,20 @@ class KeyReader:
             if is_complete_arrow_sequence(sequence):
                 break
 
+        if sequence == b"\x1b":
+            return "escape"
         return decode_arrow_sequence(bytes(sequence))
 
 
 def _choose_speed() -> tuple[str, float] | None:
     print("Choose speed:")
     for key, (name, delay) in SPEEDS.items():
-        print(f"{key}. {name} ({delay:.2f}s/tick)")
+        print(f"{key}. {name} ({delay:.2f}s horizontal tick)")
     print("Q. Quit")
 
     while True:
         choice = input("\nSpeed: ").strip().lower()
-        if choice in {"q", "quit", "exit"}:
+        if is_quit_key(choice) or choice in {"quit", "exit"}:
             return None
         speed = SPEEDS.get(choice)
         if speed is not None:
@@ -337,55 +407,58 @@ def play_round(rng: Random | None = None) -> bool:
 
     print("\033[2J\033[?25l", end="", flush=True)
     try:
-        with KeyReader() as reader:
-            next_tick = time.monotonic() + tick_seconds
-            pending_direction = state.direction
+        try:
+            with KeyReader() as reader:
+                next_tick = time.monotonic() + movement_interval(tick_seconds, state.direction)
+                pending_direction = state.direction
 
-            while state.alive:
-                print("\033[H" + render_board(state, status=status), end="", flush=True)
+                while state.alive:
+                    print("\033[H" + render_board(state, status=status), end="", flush=True)
 
-                while True:
-                    remaining = next_tick - time.monotonic()
-                    if remaining <= 0:
+                    while True:
+                        remaining = next_tick - time.monotonic()
+                        if remaining <= 0:
+                            break
+
+                        key = reader.read_key(remaining)
+                        if is_quit_key(key):
+                            return False
+                        if key in DIRECTION_KEYS:
+                            pending_direction = change_direction(state.direction, key)
+
+                    state.direction = pending_direction
+                    snake, ate_food, alive = advance_snake(
+                        state.snake,
+                        state.direction,
+                        state.food,
+                    )
+                    state.snake = snake
+                    state.alive = alive
+                    next_tick += movement_interval(tick_seconds, state.direction)
+
+                    if not alive:
                         break
 
-                    key = reader.read_key(remaining)
-                    if key in {"q", "\x03"}:
-                        return False
-                    if key in DIRECTION_KEYS:
-                        pending_direction = change_direction(state.direction, key)
+                    if ate_food:
+                        state.score += FOOD_SCORE
+                        state.food = place_food(state.snake, rng=generator)
+                        if state.food is None:
+                            print(
+                                "\033[H"
+                                + render_board(state, status="Board cleared!"),
+                                end="",
+                                flush=True,
+                            )
+                            break
 
-                state.direction = pending_direction
-                snake, ate_food, alive = advance_snake(
-                    state.snake,
-                    state.direction,
-                    state.food,
-                )
-                state.snake = snake
-                state.alive = alive
-                next_tick += tick_seconds
-
-                if not alive:
-                    break
-
-                if ate_food:
-                    state.score += FOOD_SCORE
-                    state.food = place_food(state.snake, rng=generator)
-                    if state.food is None:
-                        print(
-                            "\033[H"
-                            + render_board(state, status="Board cleared!"),
-                            end="",
-                            flush=True,
-                        )
-                        break
-
-            if not state.alive:
-                print(
-                    "\033[H" + render_board(state, status="Self collision"),
-                    end="",
-                    flush=True,
-                )
+                if not state.alive:
+                    print(
+                        "\033[H" + render_board(state, status="Self collision"),
+                        end="",
+                        flush=True,
+                    )
+        except KeyboardInterrupt:
+            return False
     finally:
         print("\033[?25h", flush=True)
 
@@ -401,7 +474,7 @@ def main() -> None:
     print("=== Snake ===")
     print("Move in real time with the arrow keys. No Enter needed.")
     print("Eat * to grow. Crossing an edge wraps you to the opposite side.")
-    print("Avoid your own body. Press Q to quit.")
+    print("Avoid your own body. Press Q or Esc to quit.")
 
     while True:
         if not play_round():
