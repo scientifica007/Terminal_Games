@@ -32,6 +32,17 @@ ANSI_ARROW_KEYS = {
     "\x1b[B": "down",
     "\x1b[C": "right",
     "\x1b[D": "left",
+    "\x1bOA": "up",
+    "\x1bOB": "down",
+    "\x1bOC": "right",
+    "\x1bOD": "left",
+}
+
+ARROW_FINALS = {
+    "A": "up",
+    "B": "down",
+    "C": "right",
+    "D": "left",
 }
 
 WINDOWS_ARROW_KEYS = {
@@ -192,6 +203,29 @@ def render_board(
     return "\n".join(lines)
 
 
+def decode_arrow_sequence(sequence: bytes | str) -> str | None:
+    """Decode common POSIX terminal arrow escape sequences.
+
+    Supports normal CSI arrows (ESC [ A), application-cursor SS3 arrows
+    (ESC O A), and CSI variants carrying modifiers such as ESC [ 1 ; 2 A.
+    """
+    if isinstance(sequence, bytes):
+        try:
+            text = sequence.decode("ascii")
+        except UnicodeDecodeError:
+            return None
+    else:
+        text = sequence
+
+    direct = ANSI_ARROW_KEYS.get(text)
+    if direct is not None:
+        return direct
+
+    if len(text) >= 3 and (text.startswith("\x1b[") or text.startswith("\x1bO")):
+        return ARROW_FINALS.get(text[-1])
+    return None
+
+
 class KeyReader:
     """Read single keys/arrows without Enter and restore terminal state."""
 
@@ -231,25 +265,37 @@ class KeyReader:
                 time.sleep(min(0.01, timeout))
             return None
 
-        ready, _, _ = select.select([self.stream], [], [], timeout)
+        fd = self._fd if self._fd is not None else self.stream.fileno()
+        ready, _, _ = select.select([fd], [], [], timeout)
         if not ready:
             return None
 
-        first = self.stream.read(1)
-        if first != "\x1b":
-            return first.lower()
+        first = os.read(fd, 1)
+        if first != b"\x1b":
+            return first.decode("utf-8", errors="ignore").lower() or None
 
-        sequence = first
-        deadline = time.monotonic() + 0.02
-        while len(sequence) < 3:
+        sequence = bytearray(first)
+        deadline = time.monotonic() + 0.04
+        while len(sequence) < 16:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
-            ready, _, _ = select.select([self.stream], [], [], remaining)
+            ready, _, _ = select.select([fd], [], [], remaining)
             if not ready:
                 break
-            sequence += self.stream.read(1)
-        return ANSI_ARROW_KEYS.get(sequence)
+            chunk = os.read(fd, 1)
+            if not chunk:
+                break
+            sequence.extend(chunk)
+
+            if (
+                len(sequence) >= 3
+                and sequence[:2] in {b"\x1b[", b"\x1bO"}
+                and sequence[-1:] in {b"A", b"B", b"C", b"D"}
+            ):
+                break
+
+        return decode_arrow_sequence(bytes(sequence))
 
 
 def _choose_speed() -> tuple[str, float] | None:
