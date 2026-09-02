@@ -26,12 +26,6 @@ DIRECTION_KEYS = {
     "w": LEFT,
     "c": RIGHT,
 }
-DIRECTION_NAMES = {
-    UP: "up",
-    DOWN: "down",
-    LEFT: "left",
-    RIGHT: "right",
-}
 
 SPEEDS = {
     "1": ("Relaxed", 0.18),
@@ -258,12 +252,25 @@ def play_round(rng: Random | None = None) -> bool:
         with KeyReader() as reader:
             while state.alive:
                 print("\033[H" + render_board(state, status=status), end="", flush=True)
-                key = reader.read_key(tick_seconds)
-                if key in {"q", "\x03"}:
-                    return False
 
-                if key is not None:
-                    state.direction = change_direction(state.direction, key)
+                deadline = time.monotonic() + tick_seconds
+                direction_changed = False
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+
+                    key = reader.read_key(remaining)
+                    if key is None:
+                        break
+                    if key in {"q", "\x03"}:
+                        return False
+
+                    if not direction_changed and key in DIRECTION_KEYS:
+                        new_direction = change_direction(state.direction, key)
+                        if new_direction != state.direction:
+                            state.direction = new_direction
+                            direction_changed = True
 
                 snake, ate_food, alive = advance_snake(
                     state.snake,
