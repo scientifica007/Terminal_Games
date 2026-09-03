@@ -174,6 +174,53 @@ class MinesweeperGame:
                     ):
                         queue.append(neighbor)
 
+    def chord(self, row: int, col: int) -> bool:
+        """Reveal unflagged neighbors when a revealed number has enough flags.
+
+        A chord is allowed only on a revealed numbered cell whose adjacent flag
+        count exactly matches its mine hint. Incorrectly placed flags can leave
+        a real mine unflagged; chording in that situation detonates that mine,
+        matching the risk of the classic Minesweeper shortcut.
+
+        Return True when the board changes, including a mine detonation.
+        """
+        if not self.in_bounds(row, col):
+            raise ValueError("Cell outside board.")
+        if self.lost or self.is_won():
+            return False
+
+        cell = (row, col)
+        if cell not in self.revealed:
+            return False
+
+        required_flags = self.adjacent_mines(row, col)
+        if required_flags <= 0:
+            return False
+
+        neighbors = self.neighbors(row, col)
+        adjacent_flags = sum(neighbor in self.flags for neighbor in neighbors)
+        if adjacent_flags != required_flags:
+            return False
+
+        targets = [
+            neighbor
+            for neighbor in neighbors
+            if neighbor not in self.flags and neighbor not in self.revealed
+        ]
+        if not targets:
+            return False
+
+        mine_target = next((target for target in targets if target in self.mines), None)
+        if mine_target is not None:
+            self.revealed.add(mine_target)
+            self.lost = True
+            return True
+
+        before = len(self.revealed)
+        for target in targets:
+            self.reveal(*target)
+        return len(self.revealed) > before
+
     def is_won(self) -> bool:
         """Return True when every non-mine cell has been revealed."""
         safe_cells = self.rows * self.cols - self.mine_count
@@ -340,15 +387,17 @@ def parse_command(raw: str) -> tuple[str, int | None, int | None]:
             normalized = "reveal"
         elif action in {"f", "flag"}:
             normalized = "flag"
+        elif action in {"c", "chord"}:
+            normalized = "chord"
         else:
-            raise ValueError("Use R row col, F row col, SAVE, or Q.")
+            raise ValueError("Use R row col, F row col, C row col, SAVE, or Q.")
 
         if not parts[1].isdigit() or not parts[2].isdigit():
             raise ValueError("Row and column must be numbers.")
 
         return normalized, int(parts[1]) - 1, int(parts[2]) - 1
 
-    raise ValueError("Use R row col, F row col, SAVE, or Q.")
+    raise ValueError("Use R row col, F row col, C row col, SAVE, or Q.")
 
 
 def choose_difficulty() -> Difficulty | None:
@@ -387,8 +436,12 @@ def play_round(
         f"\n{difficulty.name}: {difficulty.rows}x{difficulty.cols}, "
         f"{difficulty.mines} mines"
     )
-    print("Commands: R row col = reveal, F row col = flag, SAVE = save, Q = quit")
+    print(
+        "Commands: R row col = reveal, F row col = flag, "
+        "C row col = chord, SAVE = save, Q = quit"
+    )
     print("Shortcut: entering just 'row col' reveals that cell.")
+    print("Chord opens a revealed number's unflagged neighbors when its flag count matches.")
     print("The first revealed cell is always safe.\n")
 
     while not game.lost and not game.is_won():
@@ -430,6 +483,17 @@ def play_round(
                 placed = game.toggle_flag(row, col)
                 actions += 1
                 print("\nFlag placed.\n" if placed else "\nFlag removed.\n")
+            continue
+
+        if action == "chord":
+            if game.chord(row, col):
+                actions += 1
+                print()
+            else:
+                print(
+                    "\nChord requires a revealed numbered cell with exactly "
+                    "the matching number of adjacent flags.\n"
+                )
             continue
 
         if (row, col) in game.flags:
