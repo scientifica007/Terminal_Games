@@ -39,6 +39,7 @@ python3 -m games.connect_four
 python3 -m games.minesweeper
 python3 -m games.game_2048
 python3 -m games.snake
+python3 -m games.tetris
 ```
 
 ## Shared progress system
@@ -64,6 +65,7 @@ Each game has one local save slot containing the actual in-progress game state.
 - Minesweeper: type `SAVE` at the move prompt.
 - 2048: type `SAVE` instead of a movement command.
 - Snake: press `S` while the game is running; no Enter is required. The Arabic-layout physical-S character `س` is also recognized.
+- Tetris: press `S` while the game is running or paused; no Enter is required. Arabic-layout `س` is also recognized.
 
 Saving does not end the current game. Loading later returns to the saved position, score, difficulty/speed, and other state required by that game.
 
@@ -77,6 +79,8 @@ A completed game automatically invalidates its old save slot so a finished posit
 
 Best Score is persistent and independent from the current save. It survives quitting the application and survives `Reset saved game only`.
 
+Real-time/long-running games keep record updates in memory while gameplay is timing-sensitive and flush them only at explicit safe I/O points such as Save, quit, or game over. This prevents progress-file latency from stalling the gameplay loop.
+
 Scoring is game-specific:
 
 - **Tic-Tac-Toe:** win = 100, draw = 25, loss = 0. The computer is optimal, so a draw is a valid scored result.
@@ -84,6 +88,7 @@ Scoring is game-specific:
 - **Minesweeper:** a successful clear is scored from board complexity (`safe cells × 10 + mines × 25`) with a 5-point deduction per effective action, bounded so a successful clear always retains at least 25% of its base value.
 - **2048:** the standard merge score is used directly.
 - **Snake:** each food item is worth 10 points.
+- **Tetris:** classic line-clear scoring (40/100/300/1200 × level multiplier), plus 1 point per soft-drop row and 2 points per hard-drop row.
 
 ### Reset
 
@@ -229,7 +234,7 @@ Features:
 - The snake grows by one cell for every food item eaten.
 - Score increases by 10 points per food item.
 - Save / Load preserves the snake body, direction, food, score, and selected speed.
-- Persistent Best Score updates during the live round.
+- Persistent Best Score is buffered during live play and flushed at safe I/O points.
 - Crossing any edge wraps the snake to the opposite side.
 - Self-collision remains lethal, including after wrapping across an edge.
 - Immediate 180-degree turns are blocked.
@@ -254,6 +259,41 @@ The controls are read directly while the game is running; do not press Enter aft
 
 The complete engineering record of the Snake implementation—including failed approaches, terminal-input bugs, root causes, fixes, design reversals, regression rules, and lessons for future real-time terminal games—is documented in [`docs/snake-development-retrospective.md`](docs/snake-development-retrospective.md).
 
+### Tetris
+
+A real-time 10x20 terminal Tetris implementation with automatic gravity and immediate keyboard input.
+
+Features:
+
+- Standard 10x20 play field.
+- All seven tetrominoes: `I`, `O`, `T`, `S`, `Z`, `J`, and `L`.
+- Seven-bag randomizer to avoid extreme piece droughts.
+- Arrow-key movement with Up for clockwise rotation and small wall/floor kicks.
+- Down performs a soft drop; Space performs an immediate hard drop.
+- Completed rows are removed and replaced with empty rows at the top.
+- Level increases every 10 cleared lines and gravity accelerates with a lower timing bound.
+- Classic line-clear scoring plus soft/hard-drop points.
+- `Next` preview for the upcoming tetromino.
+- `P` pauses/resumes without consuming gravity time.
+- Save / Load preserves the board, active piece, upcoming piece, remaining seven-bag, score, and cleared-line count.
+- Best Score is updated in memory during gameplay and persisted only at safe I/O points.
+- `S` saves during active play or pause; `Q` / `Esc` exits cleanly.
+- Arabic physical-key equivalents are supported for Save (`س`), Pause (`ح`), and Quit (`ض`).
+- ANSI redraw and terminal-state restoration.
+- Uses only the Python standard library.
+
+Tetris controls:
+
+```text
+← / →    move
+↓        soft drop
+↑        rotate clockwise
+Space    hard drop
+P        pause / resume
+S        save
+Q / Esc  quit
+```
+
 ## Project structure
 
 ```text
@@ -270,6 +310,8 @@ Terminal_Games/
 │   ├── progress.py
 │   ├── session_menu.py
 │   ├── snake.py
+│   ├── terminal_input.py
+│   ├── tetris.py
 │   └── tic_tac_toe.py
 └── tests/
     ├── test_connect_four.py
@@ -278,6 +320,8 @@ Terminal_Games/
     ├── test_progress.py
     ├── test_progress_integration.py
     ├── test_snake.py
+    ├── test_terminal_input.py
+    ├── test_tetris.py
     └── test_tic_tac_toe.py
 ```
 
@@ -300,10 +344,11 @@ A new game should:
 3. use `games.progress` and `games.session_menu` for Save / Load / Best Score / Reset rather than creating another storage format;
 4. define and document a meaningful scoring rule if it participates in Best Score;
 5. version and validate its own saved-state payload;
-6. add save round-trip and scoring tests in addition to ordinary game-logic tests.
+6. add save round-trip and scoring tests in addition to ordinary game-logic tests;
+7. keep disk I/O out of timing-sensitive gameplay loops and flush buffered progress only at explicit safe points.
 
-Shared terminal utilities can be introduced under a dedicated package when at least two games need them.
+Reusable real-time terminal input now lives in `games/terminal_input.py` for new games. Snake keeps its already-tested input path unchanged for the moment; any migration should be behavior-preserving and separately regression-tested.
 
 ## Roadmap
 
-Before adding another game, the persistence feature should be manually tested on the real Ubuntu terminal, especially Save/Load for Snake and Reset behavior. Candidate future games include Hangman, Blackjack, Battleship, and terminal roguelikes.
+Candidate future games include Sudoku, Othello/Reversi, Hangman, Blackjack, Battleship, and terminal roguelikes.
