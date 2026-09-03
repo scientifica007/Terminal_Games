@@ -3,8 +3,10 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from games.progress import (
+    BestScoreTracker,
     DATA_DIR_ENV,
     ProgressDataError,
     clear_save,
@@ -62,6 +64,38 @@ class ProgressPersistenceTests(unittest.TestCase):
         self.assertTrue(update_best_score("demo", 75))
         self.assertEqual(get_best_score("demo"), 75)
 
+    def test_best_score_tracker_observes_without_disk_io(self) -> None:
+        update_best_score("demo", 100)
+        tracker = BestScoreTracker.load("demo")
+
+        with patch("games.progress.update_best_score") as persist:
+            self.assertTrue(tracker.observe(120))
+            self.assertTrue(tracker.observe(140))
+            self.assertFalse(tracker.observe(130))
+            persist.assert_not_called()
+
+            self.assertTrue(tracker.dirty)
+            self.assertEqual(tracker.best_score, 140)
+            persist.return_value = True
+            self.assertTrue(tracker.flush())
+            persist.assert_called_once_with("demo", 140)
+            self.assertFalse(tracker.dirty)
+
+    def test_best_score_tracker_flushes_only_when_dirty(self) -> None:
+        update_best_score("demo", 80)
+        tracker = BestScoreTracker.load("demo", current_score=80)
+
+        with patch("games.progress.update_best_score") as persist:
+            self.assertFalse(tracker.flush())
+            persist.assert_not_called()
+
+    def test_best_score_tracker_seeds_from_loaded_game_score(self) -> None:
+        update_best_score("demo", 50)
+        tracker = BestScoreTracker.load("demo", current_score=75)
+        self.assertEqual(tracker.persisted_score, 50)
+        self.assertEqual(tracker.best_score, 75)
+        self.assertTrue(tracker.dirty)
+
     def test_reset_can_keep_or_clear_best(self) -> None:
         save_state("demo", {"turn": 1})
         update_best_score("demo", 90)
@@ -92,6 +126,11 @@ class ProgressPersistenceTests(unittest.TestCase):
             update_best_score("demo", -1)
         with self.assertRaises(ValueError):
             update_best_score("demo", True)
+        tracker = BestScoreTracker("demo", 0, 0)
+        with self.assertRaises(ValueError):
+            tracker.observe(-1)
+        with self.assertRaises(ValueError):
+            tracker.observe(True)
 
 
 if __name__ == "__main__":
