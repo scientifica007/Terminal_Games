@@ -1,5 +1,6 @@
 import random
 import unittest
+from unittest.mock import Mock, patch
 
 from games.game_2048 import (
     DIRECTIONS,
@@ -10,6 +11,7 @@ from games.game_2048 import (
     merge_line,
     move,
     new_board,
+    play_round,
     render_board,
 )
 
@@ -142,6 +144,28 @@ class Game2048Tests(unittest.TestCase):
         rendered = render_board(board, 1234)
         self.assertIn("2048", rendered)
         self.assertIn("1234", rendered)
+
+    def test_round_buffers_new_best_until_quit_flush(self):
+        board = [
+            [2, 2, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ]
+        tracker = Mock(best_score=100)
+        tracker.observe.return_value = True
+
+        with (
+            patch("games.game_2048.BestScoreTracker.load", return_value=tracker) as load,
+            patch("games.game_2048._read_move", side_effect=["w", None]),
+            patch("games.game_2048.add_random_tile", return_value=True),
+            patch("builtins.print"),
+        ):
+            self.assertFalse(play_round(saved=(board, 100, False)))
+
+        load.assert_called_once_with("2048", 100)
+        tracker.observe.assert_called_once_with(104)
+        tracker.flush.assert_called_once_with()
 
 
 if __name__ == "__main__":

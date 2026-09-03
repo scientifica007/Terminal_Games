@@ -1,6 +1,6 @@
 """Shared local persistence for Terminal_Games.
 
-The module intentionally keeps storage independent from any one game.  Current
+The module intentionally keeps storage independent from any one game. Current
 progress is stored in one JSON document under the user's home directory, while
 individual games own the schema of their saved state.
 """
@@ -8,6 +8,7 @@ individual games own the schema of their saved state.
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -27,7 +28,7 @@ def data_file_path() -> Path:
     """Return the JSON progress file path.
 
     Tests and advanced users may override the directory with
-    ``TERMINAL_GAMES_DATA_DIR``.  The default deliberately lives outside the
+    ``TERMINAL_GAMES_DATA_DIR``. The default deliberately lives outside the
     repository so playing never dirties the Git working tree.
     """
     configured = os.environ.get(DATA_DIR_ENV)
@@ -64,7 +65,7 @@ def _write_store(store: dict[str, Any]) -> None:
     path = data_file_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write beside the destination and atomically replace it.  A crash during
+    # Write beside the destination and atomically replace it. A crash during
     # serialization therefore cannot leave a half-written progress file.
     temp_name: str | None = None
     try:
@@ -127,7 +128,7 @@ def load_state(game_id: str) -> dict[str, Any] | None:
 
 
 def clear_save(game_id: str) -> bool:
-    """Delete only the current save.  Best score is preserved."""
+    """Delete only the current save. Best score is preserved."""
     store = _read_store()
     record = _game_record(store, game_id)
     existed = record.get("save") is not None
@@ -165,6 +166,50 @@ def update_best_score(game_id: str, score: int) -> bool:
     record["best_score"] = score
     _write_store(store)
     return True
+
+
+@dataclass
+class BestScoreTracker:
+    """Track a game's best score in memory and flush only at safe I/O points.
+
+    Long-running or real-time games should call :meth:`observe` freely inside
+    their hot gameplay loop. Disk I/O happens only when :meth:`flush` is called,
+    for example on explicit Save, quit, or game over.
+    """
+
+    game_id: str
+    persisted_score: int
+    best_score: int
+
+    @classmethod
+    def load(cls, game_id: str, current_score: int = 0) -> "BestScoreTracker":
+        """Read the persisted record once and seed an in-memory tracker."""
+        if isinstance(current_score, bool) or not isinstance(current_score, int) or current_score < 0:
+            raise ValueError("Score must be a non-negative integer.")
+        persisted = get_best_score(game_id)
+        return cls(game_id, persisted, max(persisted, current_score))
+
+    @property
+    def dirty(self) -> bool:
+        """Return whether memory contains a record not yet persisted."""
+        return self.best_score > self.persisted_score
+
+    def observe(self, score: int) -> bool:
+        """Update the in-memory record without reading or writing the data file."""
+        if isinstance(score, bool) or not isinstance(score, int) or score < 0:
+            raise ValueError("Score must be a non-negative integer.")
+        if score <= self.best_score:
+            return False
+        self.best_score = score
+        return True
+
+    def flush(self) -> bool:
+        """Persist a pending record once; do nothing when memory is already clean."""
+        if not self.dirty:
+            return False
+        changed = update_best_score(self.game_id, self.best_score)
+        self.persisted_score = self.best_score
+        return changed
 
 
 def reset_game_data(game_id: str, *, include_best: bool = False) -> None:

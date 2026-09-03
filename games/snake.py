@@ -11,12 +11,11 @@ import time
 from typing import Any, TextIO
 
 from games.progress import (
+    BestScoreTracker,
     ProgressDataError,
     clear_save,
-    get_best_score,
     load_state,
     save_state,
-    update_best_score,
 )
 from games.session_menu import LOAD, NEW, QUIT, choose_session_action
 
@@ -483,6 +482,11 @@ def _choose_speed() -> tuple[str, float] | None:
         print("Choose 1, 2, or 3.")
 
 
+def _flush_best_score(best: BestScoreTracker) -> None:
+    """Persist a buffered record only at an explicit non-tick I/O point."""
+    best.flush()
+
+
 def play_round(
     rng: Random | None = None,
     saved: tuple[GameState, str, float] | None = None,
@@ -498,7 +502,8 @@ def play_round(
     else:
         state, speed_name, tick_seconds = saved
 
-    status = f"Speed: {speed_name} | Best: {get_best_score(GAME_ID)}"
+    best = BestScoreTracker.load(GAME_ID, state.score)
+    status = f"Speed: {speed_name} | Best: {best.best_score}"
 
     if not sys.stdin.isatty():
         print("Snake requires an interactive terminal (TTY).")
@@ -521,17 +526,31 @@ def play_round(
 
                         key = reader.read_key(remaining)
                         if is_quit_key(key):
+                            try:
+                                _flush_best_score(best)
+                            except ProgressDataError:
+                                pass
                             return False
+
                         if is_save_key(key):
                             try:
                                 save_state(GAME_ID, serialize_session(state, speed_name))
-                                status = (
-                                    f"Saved | Speed: {speed_name} | "
-                                    f"Best: {get_best_score(GAME_ID)}"
-                                )
                             except ProgressDataError:
                                 status = "Save failed"
+                            else:
+                                try:
+                                    _flush_best_score(best)
+                                except ProgressDataError:
+                                    status = (
+                                        f"Saved | Best sync failed | Speed: {speed_name}"
+                                    )
+                                else:
+                                    status = (
+                                        f"Saved | Speed: {speed_name} | "
+                                        f"Best: {best.best_score}"
+                                    )
                             continue
+
                         if key in DIRECTION_KEYS:
                             pending_direction = change_direction(state.direction, key)
 
@@ -550,12 +569,13 @@ def play_round(
 
                     if ate_food:
                         state.score += FOOD_SCORE
-                        if update_best_score(GAME_ID, state.score):
-                            status = f"New Best! {state.score} | Speed: {speed_name}"
+                        if best.observe(state.score):
+                            status = (
+                                f"New Best! {best.best_score} | Speed: {speed_name}"
+                            )
                         else:
                             status = (
-                                f"Speed: {speed_name} | "
-                                f"Best: {get_best_score(GAME_ID)}"
+                                f"Speed: {speed_name} | Best: {best.best_score}"
                             )
                         state.food = place_food(state.snake, rng=generator)
                         if state.food is None:
@@ -574,17 +594,21 @@ def play_round(
                         flush=True,
                     )
         except KeyboardInterrupt:
+            try:
+                _flush_best_score(best)
+            except ProgressDataError:
+                pass
             return False
     finally:
         print("\033[?25h", flush=True)
 
+    _flush_best_score(best)
     clear_save(GAME_ID)
-    update_best_score(GAME_ID, state.score)
     if state.food is None:
         print(f"\nYou filled the entire board. Final score: {state.score}")
     else:
         print(f"\nYou hit your own body. Final score: {state.score}")
-    print(f"Best Score: {get_best_score(GAME_ID)}")
+    print(f"Best Score: {best.best_score}")
     return True
 
 

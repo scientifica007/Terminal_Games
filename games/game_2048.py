@@ -6,12 +6,11 @@ from random import Random
 from typing import Any, Iterable
 
 from games.progress import (
+    BestScoreTracker,
     ProgressDataError,
     clear_save,
-    get_best_score,
     load_state,
     save_state,
-    update_best_score,
 )
 from games.session_menu import LOAD, NEW, QUIT, choose_session_action
 
@@ -219,6 +218,11 @@ def _read_move() -> str | None:
         print("Use S, X, C, W, SAVE, or Q.")
 
 
+def _flush_best_score(tracker: BestScoreTracker) -> None:
+    """Persist a buffered record at a non-gameplay I/O point."""
+    tracker.flush()
+
+
 def play_round(
     rng: Random | None = None,
     saved: tuple[Board, int, bool] | None = None,
@@ -235,27 +239,35 @@ def play_round(
         board, score, target_announced = saved
         board = _copy_board(board)
 
+    best = BestScoreTracker.load(GAME_ID, score)
+
     print("\nControls: S=up, X=down, C=right, W=left. Equal tiles merge once per move.")
     print("Type SAVE to store the current board.\n")
 
     while True:
         print(render_board(board, score))
-        print(f"Best Score: {get_best_score(GAME_ID)}")
+        print(f"Best Score: {best.best_score}")
         print()
 
         if not can_move(board):
+            _flush_best_score(best)
             clear_save(GAME_ID)
-            update_best_score(GAME_ID, score)
             print("No legal moves remain. Game over.")
-            print(f"Final score: {score} | Best Score: {get_best_score(GAME_ID)}")
+            print(f"Final score: {score} | Best Score: {best.best_score}")
             return True
 
         command = _read_move()
         if command is None:
+            try:
+                _flush_best_score(best)
+            except ProgressDataError as exc:
+                print(f"\nCould not update Best Score: {exc}")
             return False
+
         if command == "save":
             try:
                 save_state(GAME_ID, serialize_state(board, score, target_announced))
+                _flush_best_score(best)
                 print("\nGame saved.\n")
             except ProgressDataError as exc:
                 print(f"\nCould not save game: {exc}\n")
@@ -268,9 +280,8 @@ def play_round(
 
         board = moved_board
         score += gained
-        if gained:
-            if update_best_score(GAME_ID, score):
-                print("\nNew Best Score!\n")
+        if gained and best.observe(score):
+            print("\nNew Best Score!\n")
         add_random_tile(board, generator)
 
         if not target_announced and max_tile(board) >= TARGET:
