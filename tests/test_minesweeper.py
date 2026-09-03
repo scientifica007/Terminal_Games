@@ -84,6 +84,40 @@ class MinesweeperGameTests(unittest.TestCase):
         game.reveal(2, 2)
         self.assertTrue(game.is_won())
 
+    def test_chord_reveals_unflagged_neighbors_when_flag_count_matches(self) -> None:
+        game = MinesweeperGame(3, 3, 1, mines={(0, 0)})
+        game.reveal(1, 1)
+        game.toggle_flag(0, 0)
+
+        changed = game.chord(1, 1)
+
+        self.assertTrue(changed)
+        self.assertFalse(game.lost)
+        self.assertTrue(game.is_won())
+        self.assertNotIn((0, 0), game.revealed)
+
+    def test_chord_does_nothing_until_adjacent_flag_count_matches(self) -> None:
+        game = MinesweeperGame(3, 3, 1, mines={(0, 0)})
+        game.reveal(1, 1)
+        before = set(game.revealed)
+
+        changed = game.chord(1, 1)
+
+        self.assertFalse(changed)
+        self.assertEqual(before, game.revealed)
+        self.assertFalse(game.lost)
+
+    def test_chord_with_wrong_matching_flag_can_detonate_mine(self) -> None:
+        game = MinesweeperGame(3, 3, 1, mines={(0, 0)})
+        game.reveal(1, 1)
+        game.toggle_flag(0, 1)
+
+        changed = game.chord(1, 1)
+
+        self.assertTrue(changed)
+        self.assertTrue(game.lost)
+        self.assertIn((0, 0), game.revealed)
+
     def test_hidden_flag_and_mine_symbols(self) -> None:
         game = MinesweeperGame(2, 2, 1, mines={(0, 0)})
         game.toggle_flag(1, 1)
@@ -95,9 +129,11 @@ class MinesweeperGameTests(unittest.TestCase):
     def test_parse_bare_coordinates_as_reveal(self) -> None:
         self.assertEqual(("reveal", 2, 3), parse_command("3 4"))
 
-    def test_parse_explicit_reveal_and_flag(self) -> None:
+    def test_parse_explicit_reveal_flag_and_chord(self) -> None:
         self.assertEqual(("reveal", 1, 0), parse_command("r 2 1"))
         self.assertEqual(("flag", 4, 5), parse_command("flag 5 6"))
+        self.assertEqual(("chord", 2, 3), parse_command("c 3 4"))
+        self.assertEqual(("chord", 1, 2), parse_command("chord 2 3"))
 
     def test_parse_quit(self) -> None:
         self.assertEqual(("quit", None, None), parse_command("Q"))
