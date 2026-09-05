@@ -1,354 +1,140 @@
 # Terminal_Games
 
-A collection of small, polished games designed to run directly in a terminal.
+A collection of polished keyboard-driven games that run directly in a terminal.
 
-## Goals
+Terminal_Games is both an actively developed game project and an emerging versioned product. Development continues on new games, mechanics, terminal-input work, persistence, testing, and packaging while stable editions are prepared separately.
 
-- Keep games lightweight and easy to run.
-- Prefer the Python standard library unless a game genuinely needs an external dependency.
-- Support keyboard-driven terminal play with clear instructions and graceful input handling.
-- Keep each game isolated so new games can be added without breaking existing ones.
-- Share cross-game services such as persistence instead of reimplementing them in every game.
-- Add automated tests for reusable game logic.
+## Current product status
+
+The current development package version is:
+
+```text
+1.1.0.dev0
+```
+
+It is a development build toward the planned `v1.1.0` product release. The project is not yet published to PyPI and does not yet have a downloadable standalone desktop release.
 
 ## Requirements
 
 - Python 3.10+
+- An interactive terminal for real-time games
 
-No third-party packages are required for the current games.
+The current game runtime has no third-party Python dependencies.
 
-## Run
+## Quick start
 
-On Linux or macOS, from the repository root:
+Run directly from a source checkout:
 
 ```bash
 python3 launcher.py
 ```
 
-On systems where Python is exposed as `python`, you can use:
+Or install the checkout as a local Python package:
 
 ```bash
-python launcher.py
+python3 -m pip install .
+terminal-games
 ```
 
-You can also run any game directly:
+Check the installed version:
 
 ```bash
-python3 -m games.tic_tac_toe
-python3 -m games.connect_four
-python3 -m games.minesweeper
-python3 -m games.game_2048
-python3 -m games.snake
-python3 -m games.tetris
+terminal-games --version
 ```
+
+You can also launch the installed package with:
+
+```bash
+python3 -m terminal_games
+```
+
+See the [installation guide](docs/installation.md) for local installation, `pipx`, editable installs, platform status, and future distribution plans.
+
+## Games
+
+| # | Game | Type |
+|---|---|---|
+| 1 | Tic-Tac-Toe | turn-based strategy vs optimal minimax AI |
+| 2 | Connect Four | turn-based strategy with Easy / Medium / Hard AI |
+| 3 | Minesweeper | coordinate-driven puzzle with flags and Chord |
+| 4 | 2048 | sliding-tile puzzle |
+| 5 | Snake | real-time arcade game with wrap-around movement |
+| 6 | Tetris | real-time falling-block game with seven-bag randomization |
+| 7 | Terminal Runner | real-time endless side-scrolling runner up to 10.00x speed |
+
+For controls, scoring, saves, difficulty, and game-specific rules, use the **[Terminal_Games User Guide](docs/user-guide.md)**.
 
 ## Shared progress system
 
-All current games use one shared persistence layer.
-
-Before a round, each game presents the same session menu:
+All games use one shared persistence architecture for:
 
 ```text
-N. New game
-L. Load saved game
-B. Best score
-R. Reset
-Q. Back
+New game
+Load saved game
+Best Score
+Reset
 ```
 
-### Save
-
-Each game has one local save slot containing the actual in-progress game state.
-
-- Tic-Tac-Toe: type `SAVE` on your turn.
-- Connect Four: type `SAVE` on your turn.
-- Minesweeper: type `SAVE` at the move prompt.
-- 2048: type `SAVE` instead of a movement command.
-- Snake: press `S` while the game is running; no Enter is required. The Arabic-layout physical-S character `س` is also recognized.
-- Tetris: press `S` while the game is running or paused; no Enter is required. Arabic-layout `س` is also recognized.
-
-Saving does not end the current game. Loading later returns to the saved position, score, difficulty/speed, and other state required by that game.
-
-A completed game automatically invalidates its old save slot so a finished position cannot be loaded as an active game.
-
-### Load
-
-`Load saved game` resumes the game's single save slot. New games and saved games are deliberately separate: starting a new game does not silently destroy an older save; using Reset does.
-
-### Best Score
-
-Best Score is persistent and independent from the current save. It survives quitting the application and survives `Reset saved game only`.
-
-Real-time/long-running games keep record updates in memory while gameplay is timing-sensitive and flush them only at explicit safe I/O points such as Save, quit, or game over. This prevents progress-file latency from stalling the gameplay loop.
-
-Scoring is game-specific:
-
-- **Tic-Tac-Toe:** win = 100, draw = 25, loss = 0. The computer is optimal, so a draw is a valid scored result.
-- **Connect Four:** a win has a difficulty-weighted base (Easy 100, Medium 250, Hard 500) plus an efficiency bonus for winning in fewer human moves; a draw receives one fifth of the difficulty base.
-- **Minesweeper:** a successful clear is scored from board complexity (`safe cells × 10 + mines × 25`) with a 5-point deduction per effective action, bounded so a successful clear always retains at least 25% of its base value.
-- **2048:** the standard merge score is used directly.
-- **Snake:** each food item is worth 10 points.
-- **Tetris:** classic line-clear scoring (40/100/300/1200 × level multiplier), plus 1 point per soft-drop row and 2 points per hard-drop row.
-
-### Reset
-
-`Reset` is deliberately explicit:
-
-```text
-1. Delete saved game only (keep Best Score)
-2. Delete saved game and Best Score
-N. Cancel
-```
-
-Clearing Best Score requires an additional `RESET` confirmation. This prevents an ordinary restart from erasing a record accidentally.
-
-### Storage location and integrity
-
-Progress is written to:
+Each game has one active save slot and one persistent Best Score. Progress is stored outside the repository at:
 
 ```text
 ~/.terminal_games/progress.json
 ```
 
-The data lives outside the repository, so playing does not create untracked Git files. Writes use a temporary file followed by an atomic replacement to reduce the risk of a half-written save.
+Writes use temporary-file replacement to reduce the risk of a partially written progress file. Real-time games keep timing-sensitive Best Score updates out of the hot loop and flush them at explicit safe I/O points.
 
-For tests or advanced use, the storage directory can be overridden with:
+The storage directory can be overridden for tests or isolated play:
 
 ```bash
-TERMINAL_GAMES_DATA_DIR=/some/path python3 launcher.py
+TERMINAL_GAMES_DATA_DIR=/some/path terminal-games
 ```
 
-The persistence format is versioned and validated when loaded. Invalid/corrupted progress is reported rather than silently overwritten.
+See the [User Guide](docs/user-guide.md) for the player-facing Save / Load / Best Score / Reset behavior.
 
-## Future player profiles / usernames
+## Documentation
 
-The persistence schema reserves profile metadata, but username/account code is intentionally not implemented yet.
+### Player and product documentation
 
-The planned model is a lightweight **local player profile**: a username selects whose saves and Best Scores are active. It is meant to separate several players on the same computer, not to act as authentication or a security boundary.
+- **[User Guide](docs/user-guide.md)** — how to launch, save, load, reset, and play every game.
+- **[Installation Guide](docs/installation.md)** — source, package, `pipx`, and development installation.
+- **[Changelog](CHANGELOG.md)** — product-development history.
+- **[Product / Release Strategy](docs/product-release-strategy.md)** — versioning, release channels, desktop distribution, and planned browser architecture.
 
-The design, migration strategy, Unicode username rules, privacy model, and proposed storage architecture are documented in [`docs/player-profile-design.md`](docs/player-profile-design.md).
+### Engineering and design records
 
-## Games
+- [Terminal Runner technical guide](docs/terminal-runner.md)
+- [Terminal Runner open-source comparison](docs/terminal-runner-open-source-comparison.md)
+- [Snake development retrospective](docs/snake-development-retrospective.md)
+- [Future player-profile design](docs/player-profile-design.md)
 
-### Tic-Tac-Toe
+## Development
 
-A single-player Tic-Tac-Toe implementation against an optimal minimax computer opponent.
+The repository keeps each game in its own module under `games/`, with reusable cross-game services for persistence, session menus, and real-time terminal input.
 
-Features:
+A new game should:
 
-- Numbered 1-9 board controls.
-- Human plays `X`; computer plays `O`.
-- Input validation and quit command.
-- Optimal computer strategy.
-- Save / Load / Best Score / Reset support.
-- Replay support.
+1. expose a `main()` function;
+2. keep reusable game logic separable from terminal I/O;
+3. use the shared progress/session infrastructure rather than inventing another save format;
+4. define a meaningful scoring rule when it participates in Best Score;
+5. version and validate its saved-state payload;
+6. add game-logic, persistence, and scoring tests;
+7. keep disk I/O out of timing-sensitive gameplay loops.
 
-### Connect Four
-
-A single-player Connect Four implementation on the classic 6-by-7 board.
-
-Features:
-
-- Numbered 1-7 column controls.
-- Human plays `X`; computer plays `O`.
-- Easy, Medium, and Hard difficulty levels.
-- Medium and Hard use depth-limited Minimax with alpha-beta pruning.
-- Center-aware move ordering and heuristic board evaluation.
-- Detection of horizontal, vertical, and diagonal wins.
-- Save / Load preserves board, difficulty, and move count.
-- Best Score rewards difficulty and efficient wins.
-- Full-column validation, replay, and quit handling.
-
-### Minesweeper
-
-A classic Minesweeper implementation with coordinate-driven terminal controls.
-
-Difficulty levels:
-
-- Beginner: 9x9 with 10 mines.
-- Intermediate: 16x16 with 40 mines.
-- Expert: 16x30 with 99 mines.
-
-Features:
-
-- First revealed cell is always safe; on standard boards its neighboring cells are protected too.
-- Automatic flood-fill opening of connected empty areas.
-- Flags for suspected mines.
-- One-based row and column coordinates.
-- Reveal shorthand by entering `row col`.
-- Save / Load preserves mines, revealed cells, flags, difficulty, and effective action count.
-- Best Score rewards harder boards and efficient clears.
-- Full board reveal after a win or loss.
-- Replay and quit handling.
-
-Minesweeper commands:
-
-```text
-R row col   reveal a cell
-F row col   place or remove a flag
-row col     reveal shorthand
-SAVE        save current game
-Q           quit
-```
-
-### 2048
-
-A terminal version of the classic 4x4 sliding tile puzzle.
-
-Features:
-
-- Custom `S`, `X`, `C`, `W` movement controls.
-- Standard 4x4 board.
-- Equal tiles merge only once per move.
-- Score increases by the value of each newly merged tile.
-- New tiles are `2` most of the time and occasionally `4`.
-- Invalid or ineffective moves do not create a new tile.
-- Save / Load preserves board, score, and 2048-announcement state.
-- Persistent Best Score updates as the score grows.
-- Reaching 2048 is announced, but play may continue beyond it.
-- Automatic game-over detection when no legal move remains.
-- Replay and quit handling.
-
-2048 controls:
-
-```text
-S      move up
-X      move down
-C      move right
-W      move left
-SAVE   save current game
-Q      quit
-```
-
-### Snake
-
-A real-time terminal Snake game with immediate keyboard input; movement does not require pressing Enter.
-
-Features:
-
-- 24x14 play field.
-- Keyboard arrow controls, read directly from the terminal without Enter.
-- Supports common POSIX CSI/SS3 arrow escape sequences and Windows arrow-key input.
-- Three speed levels: Relaxed, Normal, and Fast.
-- Horizontal speed values are preserved; vertical ticks are slowed by a 2x terminal-cell aspect-ratio compensation so movement looks more consistent on typical terminal fonts.
-- The snake grows by one cell for every food item eaten.
-- Score increases by 10 points per food item.
-- Save / Load preserves the snake body, direction, food, score, and selected speed.
-- Persistent Best Score is buffered during live play and flushed at safe I/O points.
-- Crossing any edge wraps the snake to the opposite side.
-- Self-collision remains lethal, including after wrapping across an edge.
-- Immediate 180-degree turns are blocked.
-- Fixed-timestep movement, so rapid key presses do not increase game speed.
-- `Q`, `Esc`, and `Ctrl+C` can exit cleanly; the Arabic physical-Q character `ض` is also recognized when an Arabic keyboard layout is active.
-- `S` / Arabic-layout `س` saves immediately without Enter.
-- ANSI redraw with terminal state restored after the round.
-- Uses only the Python standard library.
-
-Snake controls:
-
-```text
-↑       move up
-↓       move down
-→       move right
-←       move left
-S       save
-Q / Esc quit
-```
-
-The controls are read directly while the game is running; do not press Enter after an arrow key or Save key.
-
-The complete engineering record of the Snake implementation—including failed approaches, terminal-input bugs, root causes, fixes, design reversals, regression rules, and lessons for future real-time terminal games—is documented in [`docs/snake-development-retrospective.md`](docs/snake-development-retrospective.md).
-
-### Tetris
-
-A real-time 10x20 terminal Tetris implementation with automatic gravity and immediate keyboard input.
-
-Features:
-
-- Standard 10x20 play field.
-- All seven tetrominoes: `I`, `O`, `T`, `S`, `Z`, `J`, and `L`.
-- Seven-bag randomizer to avoid extreme piece droughts.
-- Arrow-key movement with Up for clockwise rotation and small wall/floor kicks.
-- Down performs a soft drop; Space performs an immediate hard drop.
-- Completed rows are removed and replaced with empty rows at the top.
-- Level increases every 10 cleared lines and gravity accelerates with a lower timing bound.
-- Classic line-clear scoring plus soft/hard-drop points.
-- `Next` preview for the upcoming tetromino.
-- `P` pauses/resumes without consuming gravity time.
-- Save / Load preserves the board, active piece, upcoming piece, remaining seven-bag, score, and cleared-line count.
-- Best Score is updated in memory during gameplay and persisted only at safe I/O points.
-- `S` saves during active play or pause; `Q` / `Esc` exits cleanly.
-- Arabic physical-key equivalents are supported for Save (`س`), Pause (`ح`), and Quit (`ض`).
-- ANSI redraw and terminal-state restoration.
-- Uses only the Python standard library.
-
-Tetris controls:
-
-```text
-← / →    move
-↓        soft drop
-↑        rotate clockwise
-Space    hard drop
-P        pause / resume
-S        save
-Q / Esc  quit
-```
-
-## Project structure
-
-```text
-Terminal_Games/
-├── launcher.py
-├── docs/
-│   ├── player-profile-design.md
-│   └── snake-development-retrospective.md
-├── games/
-│   ├── __init__.py
-│   ├── connect_four.py
-│   ├── game_2048.py
-│   ├── minesweeper.py
-│   ├── progress.py
-│   ├── session_menu.py
-│   ├── snake.py
-│   ├── terminal_input.py
-│   ├── tetris.py
-│   └── tic_tac_toe.py
-└── tests/
-    ├── test_connect_four.py
-    ├── test_game_2048.py
-    ├── test_minesweeper.py
-    ├── test_progress.py
-    ├── test_progress_integration.py
-    ├── test_snake.py
-    ├── test_terminal_input.py
-    ├── test_tetris.py
-    └── test_tic_tac_toe.py
-```
+The project intentionally prefers the Python standard library unless an external dependency provides clear product value.
 
 ## Tests
 
-Run all tests with:
+Run the full test suite with:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-The persistence tests use `TERMINAL_GAMES_DATA_DIR` with temporary directories so they never touch the player's real save file.
+CI installs the package and validates the product command before running the test suite across supported Python versions.
 
-## Design rules for new games
+## Project direction
 
-A new game should:
+Terminal_Games is not intended to stop at a fixed set of examples. New games, gameplay experiments, terminal techniques, and engineering improvements will continue while stable product editions are cut as versioned releases.
 
-1. expose a `main()` function and live in its own module under `games/`;
-2. keep reusable game logic separable from terminal I/O;
-3. use `games.progress` and `games.session_menu` for Save / Load / Best Score / Reset rather than creating another storage format;
-4. define and document a meaningful scoring rule if it participates in Best Score;
-5. version and validate its own saved-state payload;
-6. add save round-trip and scoring tests in addition to ordinary game-logic tests;
-7. keep disk I/O out of timing-sensitive gameplay loops and flush buffered progress only at explicit safe points.
-
-Reusable real-time terminal input now lives in `games/terminal_input.py` for new games. Snake keeps its already-tested input path unchanged for the moment; any migration should be behavior-preserving and separately regression-tested.
-
-## Roadmap
-
-Candidate future games include Sudoku, Othello/Reversi, Hangman, Blackjack, Battleship, and terminal roguelikes.
+Planned product stages include reproducible package artifacts, tagged GitHub Releases, standalone desktop downloads, and browser play through an isolated server-side terminal session.
