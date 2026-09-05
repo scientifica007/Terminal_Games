@@ -21,5 +21,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install product package
+        run: python -m pip install .
+
+      - name: Validate installed product metadata and command
+        run: |
+          terminal-games --version
+          python -c "import importlib.metadata as m, terminal_games; assert m.version('terminal-games') == terminal_games.__version__"
+
       - name: Run unit tests
         run: python -m unittest discover -s tests -v

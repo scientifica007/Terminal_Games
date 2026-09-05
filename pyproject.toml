@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terminal-games"
+dynamic = ["version"]
+description = "A collection of polished games designed to run directly in a terminal."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+authors = [
+    { name = "scientifica007" },
+]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+]
+
+[project.urls]
+Repository = "https://github.com/scientifica007/Terminal_Games"
+
+[project.scripts]
+terminal-games = "terminal_games.cli:main"
+
+[tool.setuptools]
+py-modules = ["launcher"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["games*", "terminal_games*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "terminal_games.__version__" }
