@@ -8,6 +8,7 @@ from games.connect_four import main as connect_four
 from games.game_2048 import main as game_2048
 from games.minesweeper import main as minesweeper
 from games.snake import main as snake
+from games.terminal_runner import main as terminal_runner
 from games.tetris import main as tetris
 from games.tic_tac_toe import main as tic_tac_toe
 
@@ -20,6 +21,7 @@ GAMES: dict[str, Game] = {
     "4": ("2048", game_2048),
     "5": ("Snake", snake),
     "6": ("Tetris", tetris),
+    "7": ("Terminal Runner", terminal_runner),
 }
 
 
