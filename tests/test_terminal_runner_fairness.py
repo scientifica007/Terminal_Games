@@ -10,7 +10,7 @@ from games import terminal_runner as runner
 
 class TerminalRunnerFairnessTests(unittest.TestCase):
     def test_every_obstacle_is_individually_jumpable_at_max_speed(self) -> None:
-        """A correctly timed jump must clear every obstacle family at the 3x cap."""
+        """A correctly timed jump must clear every obstacle family at the 10x cap."""
         peak_time = runner.JUMP_VELOCITY / runner.GRAVITY
         player_center = runner.PLAYER_X + runner.PLAYER_HITBOX_WIDTH / 2
 
@@ -25,7 +25,7 @@ class TerminalRunnerFairnessTests(unittest.TestCase):
                     obstacles=[runner.Obstacle(spec, obstacle_x)],
                     spawn_remaining=999.0,
                     speed_mode="expert",
-                    level=999,
+                    level=runner.max_level_for_mode("expert"),
                 )
                 self.assertEqual(runner.MAX_SPEED, runner.current_speed(state))
                 self.assertTrue(runner.try_jump(state))
