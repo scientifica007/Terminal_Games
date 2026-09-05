@@ -20,7 +20,9 @@ from games.session_menu import LOAD, NEW, QUIT, choose_session_action
 from games.terminal_input import KeyReader
 
 GAME_ID = "terminal_runner"
-SAVE_VERSION = 1
+SAVE_VERSION = 2
+LEGACY_SAVE_VERSION = 1
+LEGACY_LEVEL_SCORE_STEP = 700
 
 VIEW_WIDTH = 68
 VIEW_HEIGHT = 16
@@ -32,12 +34,16 @@ PLAYER_HITBOX_HEIGHT = 2.6
 FRAME_INTERVAL = 0.05
 BASE_SPEED = 7.5
 SPEED_PER_LEVEL = 0.75
-MAX_SPEED = 16.5
-LEVEL_SCORE_STEP = 700
+MAX_SPEED_MULTIPLIER = 3.0
+MAX_SPEED = BASE_SPEED * MAX_SPEED_MULTIPLIER
+BASE_LEVEL_DURATION = 8.0
+FAST_LEVEL_THRESHOLD = 1.5
+FAST_LEVEL_DURATION_GAIN = 10.0
+MAX_LEVEL_DURATION = 23.0
 
 JUMP_VELOCITY = 12.5
 GRAVITY = 22.0
-MIN_REACTION_TIME = 0.85
+MIN_REACTION_TIME = 1.05
 EXTRA_SPAWN_DISTANCE = 10.0
 
 QUIT_KEYS = {"q", "ض", "escape", "\x03"}
@@ -51,6 +57,30 @@ RUN_FRAMES = (
 )
 JUMP_FRAME = (" O ", "/|\\", "/ \\")
 GROUND_PATTERN = "__..___..._._"
+
+
+@dataclass(frozen=True)
+class SpeedProfile:
+    """Starting-speed preset selected before a new run."""
+
+    key: str
+    name: str
+    start_multiplier: float
+
+
+SPEED_PROFILES: dict[str, SpeedProfile] = {
+    "relaxed": SpeedProfile("relaxed", "Relaxed", 0.85),
+    "normal": SpeedProfile("normal", "Normal", 1.00),
+    "fast": SpeedProfile("fast", "Fast", 1.25),
+    "expert": SpeedProfile("expert", "Expert", 1.50),
+}
+SPEED_CHOICES = {
+    "1": "relaxed",
+    "2": "normal",
+    "3": "fast",
+    "4": "expert",
+}
+DEFAULT_SPEED_MODE = "normal"
 
 
 @dataclass(frozen=True)
@@ -117,6 +147,16 @@ class GameState:
     alive: bool = True
     frame_index: int = 0
     collision_kind: str = ""
+    speed_mode: str = DEFAULT_SPEED_MODE
+    level: int = 1
+    level_elapsed: float = 0.0
+
+
+def _speed_profile(speed_mode: str) -> SpeedProfile:
+    profile = SPEED_PROFILES.get(speed_mode)
+    if profile is None:
+        raise ValueError("Unknown speed mode.")
+    return profile
 
 
 def score_for_state(state: GameState) -> int:
@@ -124,22 +164,45 @@ def score_for_state(state: GameState) -> int:
     return max(0, int(state.distance * 10) + state.obstacles_passed * 25)
 
 
-def level_for_score(score: int) -> int:
-    """Return a one-based level that advances at fixed score intervals."""
-    if isinstance(score, bool) or not isinstance(score, int) or score < 0:
-        raise ValueError("Score must be a non-negative integer.")
-    return score // LEVEL_SCORE_STEP + 1
-
-
-def speed_for_level(level: int) -> float:
-    """Return world speed in terminal columns per second."""
+def speed_for_level(level: int, speed_mode: str = DEFAULT_SPEED_MODE) -> float:
+    """Return world speed in terminal columns per second for a preset and level."""
     if isinstance(level, bool) or not isinstance(level, int) or level < 1:
         raise ValueError("Level must be a positive integer.")
-    return min(MAX_SPEED, BASE_SPEED + (level - 1) * SPEED_PER_LEVEL)
+    start = BASE_SPEED * _speed_profile(speed_mode).start_multiplier
+    return min(MAX_SPEED, start + (level - 1) * SPEED_PER_LEVEL)
+
+
+def speed_multiplier_for_level(level: int, speed_mode: str = DEFAULT_SPEED_MODE) -> float:
+    return speed_for_level(level, speed_mode) / BASE_SPEED
 
 
 def current_speed(state: GameState) -> float:
-    return speed_for_level(level_for_score(score_for_state(state)))
+    return speed_for_level(state.level, state.speed_mode)
+
+
+def level_duration(level: int, speed_mode: str = DEFAULT_SPEED_MODE) -> float:
+    """Return active-play seconds spent at a level before speed can increase.
+
+    Faster levels deliberately last longer, giving the player more time to adapt
+    before the next speed increase. Paused time never counts toward this clock.
+    """
+    multiplier = speed_multiplier_for_level(level, speed_mode)
+    extra = max(0.0, multiplier - FAST_LEVEL_THRESHOLD) * FAST_LEVEL_DURATION_GAIN
+    return min(MAX_LEVEL_DURATION, BASE_LEVEL_DURATION + extra)
+
+
+def level_time_remaining(state: GameState) -> float:
+    return max(0.0, level_duration(state.level, state.speed_mode) - state.level_elapsed)
+
+
+def advance_level_clock(state: GameState, dt: float) -> None:
+    """Advance the adaptation clock and level up only after enough active time."""
+    if dt <= 0:
+        raise ValueError("dt must be positive.")
+    state.level_elapsed += dt
+    while state.level_elapsed >= level_duration(state.level, state.speed_mode):
+        state.level_elapsed -= level_duration(state.level, state.speed_mode)
+        state.level += 1
 
 
 def is_grounded(state: GameState) -> bool:
@@ -199,8 +262,7 @@ def choose_obstacle(level: int, rng: Random) -> ObstacleSpec:
 
 def spawn_obstacle(state: GameState, rng: Random) -> Obstacle:
     """Append one level-appropriate obstacle just beyond the right edge."""
-    level = level_for_score(score_for_state(state))
-    obstacle = Obstacle(choose_obstacle(level, rng), float(VIEW_WIDTH + 1))
+    obstacle = Obstacle(choose_obstacle(state.level, rng), float(VIEW_WIDTH + 1))
     state.obstacles.append(obstacle)
     return obstacle
 
@@ -231,7 +293,7 @@ def detect_collision(state: GameState) -> Obstacle | None:
 
 
 def step_game(state: GameState, dt: float, rng: Random) -> None:
-    """Advance physics, scrolling, spawning, scoring, and collision by one tick."""
+    """Advance physics, scrolling, spawning, scoring, and level timing by one tick."""
     if dt <= 0:
         raise ValueError("dt must be positive.")
     if not state.alive:
@@ -256,6 +318,8 @@ def step_game(state: GameState, dt: float, rng: Random) -> None:
         for obstacle in state.obstacles
         if obstacle.x + obstacle.spec.width >= -1.0
     ]
+
+    advance_level_clock(state, dt)
 
     if state.spawn_remaining <= 0.0:
         spawn_obstacle(state, rng)
@@ -298,6 +362,13 @@ def _nonnegative_int(value: Any, label: str) -> int:
     return value
 
 
+def _positive_int(value: Any, label: str) -> int:
+    value = _nonnegative_int(value, label)
+    if value < 1:
+        raise ValueError(f"Invalid saved {label}.")
+    return value
+
+
 def serialize_session(state: GameState) -> dict[str, Any]:
     """Serialize a live runner session without depending on RNG internals."""
     return {
@@ -316,12 +387,22 @@ def serialize_session(state: GameState) -> dict[str, Any]:
         "obstacles_passed": state.obstacles_passed,
         "spawn_remaining": state.spawn_remaining,
         "frame_index": state.frame_index,
+        "speed_mode": state.speed_mode,
+        "level": state.level,
+        "level_elapsed": state.level_elapsed,
     }
 
 
 def deserialize_session(payload: dict[str, Any]) -> GameState:
-    """Validate and restore an in-progress Terminal Runner session."""
-    if not isinstance(payload, dict) or payload.get("version") != SAVE_VERSION:
+    """Validate and restore an in-progress Terminal Runner session.
+
+    Version-1 saves from the pre-speed-selection preview are accepted and
+    migrated to Normal mode so manual-test progress is not needlessly lost.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("Unsupported Terminal Runner save version.")
+    version = payload.get("version")
+    if version not in {LEGACY_SAVE_VERSION, SAVE_VERSION}:
         raise ValueError("Unsupported Terminal Runner save version.")
 
     player_y = _finite_number(payload.get("player_y"), "player height", minimum=0.0)
@@ -337,6 +418,24 @@ def deserialize_session(payload: dict[str, Any]) -> GameState:
     )
     obstacles_passed = _nonnegative_int(payload.get("obstacles_passed"), "obstacle count")
     frame_index = _nonnegative_int(payload.get("frame_index"), "frame index")
+
+    if version == LEGACY_SAVE_VERSION:
+        speed_mode = DEFAULT_SPEED_MODE
+        legacy_score = max(0, int(distance * 10) + obstacles_passed * 25)
+        level = legacy_score // LEGACY_LEVEL_SCORE_STEP + 1
+        level_elapsed = 0.0
+    else:
+        speed_mode = payload.get("speed_mode")
+        if not isinstance(speed_mode, str) or speed_mode not in SPEED_PROFILES:
+            raise ValueError("Invalid saved speed mode.")
+        level = _positive_int(payload.get("level"), "level")
+        level_elapsed = _finite_number(
+            payload.get("level_elapsed"),
+            "level elapsed time",
+            minimum=0.0,
+        )
+        if level_elapsed >= level_duration(level, speed_mode) + 1e-9:
+            raise ValueError("Invalid saved level elapsed time.")
 
     raw_obstacles = payload.get("obstacles")
     if not isinstance(raw_obstacles, list) or len(raw_obstacles) > 12:
@@ -367,6 +466,9 @@ def deserialize_session(payload: dict[str, Any]) -> GameState:
         spawn_remaining=spawn_remaining,
         alive=True,
         frame_index=frame_index,
+        speed_mode=speed_mode,
+        level=level,
+        level_elapsed=level_elapsed,
     )
     if detect_collision(state) is not None:
         raise ValueError("Saved runner already collides with an obstacle.")
@@ -438,14 +540,15 @@ def render_world(
         _draw_text(canvas, player_top + row_offset, int(PLAYER_X), sprite_row)
 
     score = score_for_state(state)
-    level = level_for_score(score)
-    speed = current_speed(state)
+    profile = _speed_profile(state.speed_mode)
+    multiplier = current_speed(state) / BASE_SPEED
     lines = [
         "=== Terminal Runner ===",
         "Space/Up: jump | P: pause | S: save | Q/Esc: quit",
         (
             f"Score: {score:05d}   Best: {best_score:05d}   "
-            f"Level: {level}   Speed: {speed / BASE_SPEED:.2f}x   "
+            f"Mode: {profile.name}   Level: {state.level}   "
+            f"Speed: {multiplier:.2f}x   Next: {level_time_remaining(state):.1f}s   "
             f"Passed: {state.obstacles_passed}"
         ),
         "PAUSED - press P to resume." if paused else status,
@@ -472,10 +575,41 @@ def _save_live_state(state: GameState, best: BestScoreTracker) -> str:
     return "Run saved."
 
 
-def play_round(rng: Random | None = None, saved: GameState | None = None) -> bool:
+def choose_speed_mode() -> str | None:
+    """Prompt for a starting speed preset; None returns to the session menu."""
+    print("\nChoose starting speed:")
+    for number, speed_mode in SPEED_CHOICES.items():
+        profile = SPEED_PROFILES[speed_mode]
+        print(f"{number}. {profile.name} ({profile.start_multiplier:.2f}x start)")
+    print(f"All modes can eventually reach {MAX_SPEED_MULTIPLIER:.2f}x.")
+    print("Q. Back")
+
+    aliases = {
+        "relaxed": "relaxed",
+        "normal": "normal",
+        "fast": "fast",
+        "expert": "expert",
+    }
+    while True:
+        choice = input("Speed: ").strip().lower()
+        if choice in {"q", "quit", "back", "exit"}:
+            return None
+        speed_mode = SPEED_CHOICES.get(choice) or aliases.get(choice)
+        if speed_mode is not None:
+            return speed_mode
+        print("Choose 1, 2, 3, 4, or Q.")
+
+
+def play_round(
+    rng: Random | None = None,
+    saved: GameState | None = None,
+    *,
+    speed_mode: str = DEFAULT_SPEED_MODE,
+) -> bool:
     """Play one real-time round. Return False when the player explicitly quits."""
     generator = rng or Random()
-    state = saved if saved is not None else GameState()
+    state = saved if saved is not None else GameState(speed_mode=speed_mode)
+    _speed_profile(state.speed_mode)
     best = BestScoreTracker.load(GAME_ID, score_for_state(state))
     paused = False
     status = ""
@@ -602,15 +736,24 @@ def main() -> None:
             return
 
         saved = None
+        speed_mode = DEFAULT_SPEED_MODE
         if action == LOAD:
             saved = _load_saved_game()
             if saved is None:
                 continue
-            print("\nSaved run loaded.")
-        elif action != NEW:
+            print(
+                f"\nSaved run loaded ({_speed_profile(saved.speed_mode).name}, "
+                f"level {saved.level})."
+            )
+        elif action == NEW:
+            chosen = choose_speed_mode()
+            if chosen is None:
+                continue
+            speed_mode = chosen
+        else:
             continue
 
-        if not play_round(saved=saved):
+        if not play_round(saved=saved, speed_mode=speed_mode):
             print("\nGoodbye.")
             return
 
