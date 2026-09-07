@@ -6,13 +6,13 @@ Terminal_Games is both an actively developed game project and an emerging versio
 
 ## Current product status
 
-The current release-candidate package version is:
+The current stable package metadata version is:
 
 ```text
-1.1.0rc1
+1.1.0
 ```
 
-It is the first release candidate for the planned `v1.1.0` product release. It is intended for final validation and is not itself a stable release. The project is not yet published to PyPI and does not yet have a downloadable standalone desktop release.
+The source tree is finalized for the planned `v1.1.0` product release. The stable version number is now set, but the permanent `stable/v1.1.0` branch, `v1.1.0` Git tag, and GitHub Release are separate release-management actions and are not created by this finalization change. The project is not published to PyPI and does not yet have a standalone desktop release.
 
 ## Requirements
 
