@@ -133,6 +133,10 @@ python3 -m unittest discover -s tests -v
 
 CI installs the package and validates the product command before running the test suite across supported Python versions.
 
+## License
+
+Terminal_Games is licensed under the MIT License. See [LICENSE](LICENSE) for the full terms.
+
 ## Project direction
 
 Terminal_Games is not intended to stop at a fixed set of examples. New games, gameplay experiments, terminal techniques, and engineering improvements will continue while stable product editions are cut as versioned releases.
