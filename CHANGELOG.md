@@ -2,9 +2,9 @@
 
 All notable product-level changes should be recorded here. Terminal_Games uses Semantic Versioning for stable product releases.
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-09-07
 
-The repository is currently targeting `1.1.0`. Package metadata now uses the first release-candidate version `1.1.0rc1` for final validation before the stable release is cut.
+The `1.1.0` source state is finalized after successful `1.1.0rc1` automated and manual validation. Package metadata now uses the stable version `1.1.0`. Publication of the permanent stable branch, `v1.1.0` tag, and GitHub Release remains a separate explicitly approved release-management step.
 
 ### Added
 
@@ -24,12 +24,18 @@ The repository is currently targeting `1.1.0`. Package metadata now uses the fir
 - Minesweeper supports the Chord action for revealed numbered cells.
 - Product versioning is now explicitly separate from per-game save-schema versions.
 - The root README is now a concise product landing page that directs players to the User Guide and Installation Guide while keeping engineering documentation discoverable.
-- Product metadata advances from development build `1.1.0.dev0` to release candidate `1.1.0rc1` for final validation.
+- Product metadata advanced from development build `1.1.0.dev0` to release candidate `1.1.0rc1`, then to stable `1.1.0` after candidate validation.
+
+### Validation
+
+- `1.1.0rc1` passed the complete Python 3.10–3.13 CI matrix.
+- The release dry run built and reinstalled the candidate wheel and source distribution, generated SHA-256 checksums, and uploaded the validated artifacts without publishing.
+- The CI-built wheel was manually checksum-verified, installed in an isolated virtual environment, and smoke-tested across all seven games.
+- The release guard correctly rejected `1.1.0rc1` as a stable publication version and already validates an exact stable `v1.1.0` / `1.1.0` match.
 
 ### Notes
 
-- `1.1.0rc1` is a release candidate, not the stable `v1.1.0` release.
-- This section does not imply that `v1.1.0` has been tagged or published yet.
+- This finalization entry does not itself imply that the `v1.1.0` Git tag or GitHub Release has already been created.
 - No PyPI publication, standalone binary, or browser-hosted edition exists at this stage.
 
 ## Historical baseline: stable/v1.0.0

@@ -32,7 +32,9 @@ Terminal_Games uses Semantic Versioning for product releases:
 - **MINOR**: new games or substantial backward-compatible features;
 - **PATCH**: backward-compatible fixes and small corrections.
 
-Before `v1.1.0` is actually released, package metadata may use PEP 440 pre-release forms. Development work used `1.1.0.dev0`; once the product entered final validation, the first release candidate became `1.1.0rc1`. Neither form is a stable release.
+Before `v1.1.0` is actually published, package metadata may use PEP 440 development or pre-release forms. Development work used `1.1.0.dev0`; final validation used `1.1.0rc1`. After the candidate passed automated and manual validation, release finalization set the package metadata to the stable version `1.1.0`.
+
+A stable package version in the source tree is necessary but not sufficient to claim a published release. The `stable/v1.1.0` branch, `v1.1.0` tag, and GitHub Release remain separate explicit release-management actions and must all refer to the same approved finalization commit.
 
 Product versioning is separate from each game's saved-state schema. For example, the product can move from 1.1.0 to 1.2.0 while Terminal Runner's save payload remains version 3. Save-schema versions change only when persistence compatibility requires them.
 
@@ -84,7 +86,7 @@ No PyPI publication is implied by this stage. Commands such as `pipx install ter
 
 Release automation lives in `.github/workflows/release.yml` and has two deliberately different paths.
 
-A manual `workflow_dispatch` run is non-publishing. It runs the supported Python test matrix, builds the source distribution and wheel, installs the built wheel for validation, generates SHA-256 checksums, and uploads the resulting files as a workflow artifact. This provides a safe dry-run path while the package version is still a development or pre-release version such as `1.1.0rc1`.
+A manual `workflow_dispatch` run is non-publishing. It runs the supported Python test matrix, builds the source distribution and wheel, installs the built wheel for validation, generates SHA-256 checksums, and uploads the resulting files as a workflow artifact. This provides a safe dry-run path for development, pre-release, and finalized-but-not-yet-published package states.
 
 A push of a tag beginning with `v` enters the publishing path only after the same tests pass. Before building, `scripts/release_guard.py` requires the package version to be an exact stable `MAJOR.MINOR.PATCH` value and requires the tag to equal `v<package-version>`. A development or pre-release package version, malformed stable version, or mismatched tag fails before publication.
 
@@ -106,16 +108,30 @@ Standalone executables are intentionally not fabricated at this stage. The relea
 
 A release candidate is an explicit pre-release package state used to validate the exact product intended for a stable release without publishing that stable release prematurely.
 
-For `v1.1.0`, the first candidate is `1.1.0rc1`. Candidate validation should include:
+For `v1.1.0`, the first candidate was `1.1.0rc1`. Candidate validation included:
 
-1. the complete automated test suite;
+1. the complete automated test suite on Python 3.10 through 3.13;
 2. the release-workflow dry run;
-3. inspection of the built wheel, source distribution, and SHA-256 checksums;
-4. installation of the built wheel in an isolated environment;
-5. manual launch and terminal-input smoke testing, especially for real-time games;
-6. review of README, installation documentation, user documentation, changelog, and release claims.
+3. checksum verification of the built wheel and source distribution;
+4. installation of the CI-built wheel in an isolated virtual environment;
+5. manual launch and smoke testing of all seven games, including the real-time Snake, Tetris, and Terminal Runner paths;
+6. review of README, installation documentation, changelog, and release claims;
+7. verification that the release guard rejected the pre-release version for stable publication.
 
-The release candidate itself does not create `stable/v1.1.0`, a `v1.1.0` tag, or a GitHub Release. If candidate validation succeeds, a separate release-finalization change sets the package version to stable `1.1.0` and records the release date before the permanent release references are created.
+The candidate itself created no `stable/v1.1.0`, `v1.1.0` tag, or GitHub Release.
+
+### Release finalization
+
+After candidate validation succeeds, a separate finalization change sets package metadata to the exact stable version, updates version-sensitive tests and documentation, and records the release date in the changelog.
+
+For `v1.1.0`, finalization sets the package version to `1.1.0` and records `2026-09-07` in the changelog. The finalization PR must itself pass the complete CI matrix and non-publishing release dry run. It still does not create permanent release references or publish anything.
+
+After the finalization PR is manually reviewed and explicitly approved, release management must re-check the exact merged finalization commit and then create:
+
+1. `stable/v1.1.0` from that exact commit;
+2. the immutable tag `v1.1.0` on that exact commit.
+
+Pushing the approved tag activates the guarded publishing workflow. Publication is valid only if the package version is exactly `1.1.0` and the tag is exactly `v1.1.0`. The resulting GitHub Release is therefore tied to the same source identity that was approved during finalization.
 
 ### Stage 3: standalone desktop artifacts
 
@@ -185,15 +201,15 @@ Productization must follow these rules:
 
 ## Immediate implementation target
 
-The product foundation and release-automation layers now provide:
+The product foundation, release automation, and `1.1.0` finalization process now provide:
 
-1. package/version metadata at release candidate `1.1.0rc1` for final validation toward `v1.1.0`;
+1. stable package/version metadata at `1.1.0` after successful release-candidate validation;
 2. the `terminal-games` console entry point and module entry point;
 3. continued support for `python3 launcher.py` as a source workflow;
 4. packaging/CLI tests and CI installation validation;
 5. installation, user, changelog, and release-strategy documentation;
 6. a dry-run release workflow for tests, distribution builds, checksums, and artifact inspection;
-7. guarded GitHub Release publication for a future explicitly created stable tag;
+7. guarded GitHub Release publication for an explicitly created matching stable tag;
 8. MIT licensing with standardized SPDX package metadata and license-file inclusion.
 
-Standalone executables, PyPI publication, Git tags, stable release branches, and browser hosting remain separate actions or later stages and require their own tested changes and explicit release decisions.
+The `stable/v1.1.0` branch, `v1.1.0` Git tag, and GitHub Release remain explicit release-management actions until they are actually created from the approved finalization commit. Standalone executables, PyPI publication, and browser hosting remain later stages requiring their own tested changes and explicit decisions.

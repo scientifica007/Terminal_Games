@@ -7,10 +7,10 @@ Terminal_Games is being prepared as a versioned installable product while preser
 The current package metadata reports:
 
 ```text
-1.1.0rc1
+1.1.0
 ```
 
-This is the first release candidate for the planned `v1.1.0` product release. It is intended for final validation and is not yet the stable release. The project is not yet published to PyPI and does not yet have a standalone desktop binary or a stable `v1.1.0` GitHub Release.
+The source state for `1.1.0` has been finalized after release-candidate validation. The stable package version is now set, but the permanent `stable/v1.1.0` branch, `v1.1.0` Git tag, and GitHub Release are separate release-management actions and are not created merely by setting the package version. The project is not published to PyPI and does not yet have a standalone desktop binary.
 
 ## Requirements
 
@@ -50,10 +50,10 @@ Check the installed product version with:
 terminal-games --version
 ```
 
-Expected release-candidate output:
+Expected finalized-version output:
 
 ```text
-terminal-games 1.1.0rc1
+terminal-games 1.1.0
 ```
 
 You can also launch the installed package as a module:
@@ -98,9 +98,9 @@ Tests and isolated environments can continue overriding the storage directory wi
 
 The current automated test matrix certifies Python 3.10 through 3.13 on Linux. Packaging is intentionally not yet advertised as fully certified on Windows or macOS; dedicated CI and real-time terminal testing should be added before those platforms are listed as supported product downloads.
 
-## Release-candidate validation
+## Release validation
 
-The repository already has guarded release automation that can run without publishing. The dry-run path:
+The repository has guarded release automation that can run without publishing. The dry-run path:
 
 1. runs the supported Python test matrix;
 2. builds the source distribution and wheel;
@@ -108,11 +108,11 @@ The repository already has guarded release automation that can run without publi
 4. generates SHA-256 checksums;
 5. uploads the resulting distribution files as a GitHub Actions artifact.
 
-For `1.1.0rc1`, this path is used to validate the candidate without creating a Git tag or GitHub Release.
+`1.1.0rc1` completed this automated path successfully. The CI-built wheel was also manually checksum-verified, installed in an isolated virtual environment, and smoke-tested across all seven games before the package version was finalized as `1.1.0`.
+
+The finalization PR repeats the automated dry-run against the stable `1.1.0` metadata without publishing. After that exact source state is reviewed and approved, the permanent stable branch and `v1.1.0` tag can be created from the approved commit. The guarded tag workflow then validates the exact stable version/tag match and creates the GitHub Release with source, wheel, and checksum artifacts.
 
 ## Remaining distribution stages
-
-After a release candidate is approved, the stable release process finalizes the package version as `1.1.0`, records the release date, creates an approved stable branch and `v1.1.0` tag, and lets the guarded release workflow build and attach source/wheel/checksum artifacts to the GitHub Release.
 
 Later product stages can add:
 
