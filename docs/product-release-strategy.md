@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Terminal_Games remains an active personal development playground: new games, experiments, refactors, and gameplay ideas should continue on ordinary feature branches. Productization must not slow that work down or force every experiment to become part of a public release immediately.
+Terminal_Games remains an active personal development playground: new games, experiments, refactors, gameplay ideas, and distribution work should continue on ordinary feature branches. Productization must not slow that work down or force every experiment to become part of a public release immediately.
 
-At the same time, players should have a clearly identifiable stable edition that can be installed, launched, and revisited later. The project therefore adopts a dual-track model: continuous development plus versioned product releases.
+At the same time, players should have clearly identifiable stable editions that can be installed, launched, and revisited later. The project therefore uses a dual-track model: continuous development plus versioned product releases.
 
 ## Development track versus product track
 
@@ -22,25 +22,35 @@ A product release adds three distinct references:
 
 These are not interchangeable. A stable branch is a maintenance reference; a tag is the immutable source identity; a GitHub Release is the user-facing distribution record.
 
-The existing `stable/v1.0.0` branch remains an immutable historical baseline. It is not retroactively treated as a Git tag or GitHub Release. The first planned productized release after this foundation is therefore `v1.1.0`.
+`v1.1.0` is the first fully productized Terminal_Games release. Its stable branch, tag, and GitHub Release were created from the exact approved finalization commit:
+
+```text
+6d0f10ace9b141acee3c107b0b6309ef738aa815
+```
+
+The older `stable/v1.0.0` branch remains an immutable historical baseline and was never retroactively converted into a tag or GitHub Release.
 
 ## Versioning policy
 
 Terminal_Games uses Semantic Versioning for product releases:
 
 - **MAJOR**: incompatible product-level changes or deliberately broken compatibility;
-- **MINOR**: new games or substantial backward-compatible features;
+- **MINOR**: new games or substantial backward-compatible features, including a meaningful new distribution capability;
 - **PATCH**: backward-compatible fixes and small corrections.
 
-Before `v1.1.0` is actually published, package metadata may use PEP 440 development or pre-release forms. Development work used `1.1.0.dev0`; final validation used `1.1.0rc1`. After the candidate passed automated and manual validation, release finalization set the package metadata to the stable version `1.1.0`.
+After publishing `v1.1.0`, the development line advances to the next planned minor-development version:
 
-A stable package version in the source tree is necessary but not sufficient to claim a published release. The `stable/v1.1.0` branch, `v1.1.0` tag, and GitHub Release remain separate explicit release-management actions and must all refer to the same approved finalization commit.
+```text
+1.2.0.dev0
+```
+
+This prevents post-release `main` changes from continuing to claim the already-published `1.1.0` identity. Development and pre-release versions remain non-publishable through the stable release guard.
 
 Product versioning is separate from each game's saved-state schema. For example, the product can move from 1.1.0 to 1.2.0 while Terminal Runner's save payload remains version 3. Save-schema versions change only when persistence compatibility requires them.
 
 ## Product identity and entry points
 
-The product should have one canonical command:
+The canonical installed command is:
 
 ```text
 terminal-games
@@ -64,13 +74,13 @@ and exposes a product version through:
 terminal-games --version
 ```
 
-The first packaging layer must be an adapter around the current launcher. It must not move game modules or change gameplay behavior merely to satisfy packaging conventions.
+Packaging and desktop distribution must remain adapters around the current launcher. They must not change game behavior merely to satisfy bundling conventions.
 
 ## Distribution stages
 
-### Stage 1: Python package foundation
+### Stage 1: Python package foundation — complete
 
-The first product layer provides:
+The product layer provides:
 
 - `pyproject.toml` package metadata;
 - a single source of truth for the product version;
@@ -80,66 +90,162 @@ The first product layer provides:
 - automated tests for version/CLI behavior;
 - CI validation that the repository can actually be installed as a package.
 
-No PyPI publication is implied by this stage. Commands such as `pipx install terminal-games` must not be advertised until a package is actually published under that name.
+No PyPI publication is implied. Commands such as `pipx install terminal-games` must not be advertised until a package is actually published under that name.
 
-### Stage 2: release automation
+### Stage 2: release automation — complete
 
-Release automation lives in `.github/workflows/release.yml` and has two deliberately different paths.
+Release automation lives in `.github/workflows/release.yml` and has deliberately different dry-run and publishing behavior.
 
-A manual `workflow_dispatch` run is non-publishing. It runs the supported Python test matrix, builds the source distribution and wheel, installs the built wheel for validation, generates SHA-256 checksums, and uploads the resulting files as a workflow artifact. This provides a safe dry-run path for development, pre-release, and finalized-but-not-yet-published package states.
+A manual `workflow_dispatch` run and relevant pull-request runs are non-publishing. They execute the supported Python test matrix and build/validate release artifacts without creating a GitHub Release.
 
-A push of a tag beginning with `v` enters the publishing path only after the same tests pass. Before building, `scripts/release_guard.py` requires the package version to be an exact stable `MAJOR.MINOR.PATCH` value and requires the tag to equal `v<package-version>`. A development or pre-release package version, malformed stable version, or mismatched tag fails before publication.
+A push of a tag beginning with `v` enters the publishing path only after validation succeeds. Before publication, `scripts/release_guard.py` requires:
 
-For a validated stable tag, the workflow:
+- an exact stable `MAJOR.MINOR.PATCH` package version;
+- a tag exactly equal to `v<package-version>`.
 
-1. runs the complete unit-test suite on Python 3.10, 3.11, 3.12, and 3.13;
-2. validates that the release tag exactly matches the stable product version;
-3. builds source and wheel distributions;
-4. installs the built wheel and re-validates the installed command/version metadata;
-5. generates SHA-256 checksums;
-6. uploads the release files as a GitHub Actions artifact;
-7. creates the GitHub Release and attaches the validated files.
+A development version, pre-release version, malformed stable version, or mismatched tag fails before publication.
 
-The workflow does **not** create Git tags or stable branches. Those remain explicit release-management actions and must only be performed from an approved known-good commit. The workflow also does not publish to PyPI.
+For `v1.1.0`, this process successfully:
 
-Standalone executables are intentionally not fabricated at this stage. The release workflow is structured so platform-specific binary build jobs can be added when Stage 3 establishes a tested desktop packaging method. Until then, a GitHub Release contains the source distribution, wheel, and checksums only.
+1. ran the complete unit-test suite on Python 3.10 through 3.13;
+2. validated the exact `v1.1.0` / `1.1.0` match;
+3. built source and wheel distributions;
+4. installed the built wheel and re-validated command/version/license metadata;
+5. generated SHA-256 checksums;
+6. uploaded validated workflow artifacts;
+7. created the official GitHub Release and attached the validated Python artifacts.
+
+The workflow does **not** create Git tags or stable branches. Those remain explicit release-management actions from an approved commit. The workflow also does not publish to PyPI.
 
 ### Release-candidate validation
 
 A release candidate is an explicit pre-release package state used to validate the exact product intended for a stable release without publishing that stable release prematurely.
 
-For `v1.1.0`, the first candidate was `1.1.0rc1`. Candidate validation included:
+For `v1.1.0`, `1.1.0rc1` validation included:
 
 1. the complete automated test suite on Python 3.10 through 3.13;
 2. the release-workflow dry run;
 3. checksum verification of the built wheel and source distribution;
 4. installation of the CI-built wheel in an isolated virtual environment;
-5. manual launch and smoke testing of all seven games, including the real-time Snake, Tetris, and Terminal Runner paths;
+5. manual launch and smoke testing of all seven games, including Snake, Tetris, and Terminal Runner;
 6. review of README, installation documentation, changelog, and release claims;
 7. verification that the release guard rejected the pre-release version for stable publication.
 
-The candidate itself created no `stable/v1.1.0`, `v1.1.0` tag, or GitHub Release.
+The same pattern should be reused for future stable releases: automated artifact validation first, then manual testing of the exact CI-built artifact before permanent release references are created.
 
 ### Release finalization
 
 After candidate validation succeeds, a separate finalization change sets package metadata to the exact stable version, updates version-sensitive tests and documentation, and records the release date in the changelog.
 
-For `v1.1.0`, finalization sets the package version to `1.1.0` and records `2026-09-07` in the changelog. The finalization PR must itself pass the complete CI matrix and non-publishing release dry run. It still does not create permanent release references or publish anything.
+For `v1.1.0`, finalization produced the approved commit `6d0f10ace9b141acee3c107b0b6309ef738aa815`. Release management then created `stable/v1.1.0` and the annotated `v1.1.0` tag on that exact commit. Pushing the tag activated the guarded publishing workflow and produced the official GitHub Release.
 
-After the finalization PR is manually reviewed and explicitly approved, release management must re-check the exact merged finalization commit and then create:
+Future releases should preserve this order and exact-commit discipline.
 
-1. `stable/v1.1.0` from that exact commit;
-2. the immutable tag `v1.1.0` on that exact commit.
+### Stage 3: standalone desktop artifacts — Linux x86_64 first
 
-Pushing the approved tag activates the guarded publishing workflow. Publication is valid only if the package version is exactly `1.1.0` and the tag is exactly `v1.1.0`. The resulting GitHub Release is therefore tied to the same source identity that was approved during finalization.
+The target user experience is a downloadable artifact that does not require Git knowledge and does not require a separately installed Python interpreter.
 
-### Stage 3: standalone desktop artifacts
+The first implementation deliberately targets only:
 
-The target user experience is eventually a downloadable artifact that does not require Git knowledge and, where practical, does not require a preinstalled Python interpreter.
+```text
+GNU/Linux x86_64
+```
 
-Potential artifacts include Linux, Windows, and macOS builds. Platform support must be based on real tests, not assumptions. The current GitHub Actions test matrix runs on Linux, so the project should not claim fully certified Windows/macOS support until dedicated platform CI and manual real-time terminal testing exist.
+#### Bundling technology
 
-Linux is the natural first binary target because the existing real-time terminal implementation is already exercised there.
+The Linux executable is built with PyInstaller `6.22.2`, pinned in:
+
+```text
+requirements/desktop-linux.txt
+```
+
+PyInstaller is a build-only dependency. Terminal_Games runtime package dependencies remain empty.
+
+The builder uses PyInstaller `--onefile` mode and the existing `terminal_games/__main__.py` entry point. No alternate gameplay launcher is introduced.
+
+The resulting release unit is a versioned archive rather than a naked browser-downloaded executable:
+
+```text
+terminal-games-<version>-linux-x86_64.tar.gz
+```
+
+The archive contains:
+
+- `terminal-games` — the self-contained executable;
+- `LICENSE` — Terminal_Games MIT terms;
+- `README.txt` — target-specific launch, persistence, and compatibility instructions.
+
+A separate target-specific checksum manifest is generated:
+
+```text
+SHA256SUMS-linux-x86_64.txt
+```
+
+Using an archive preserves the executable permission bit and provides a natural place for the license and launch instructions.
+
+#### Linux compatibility baseline
+
+The desktop build job runs on the explicit GitHub-hosted:
+
+```text
+ubuntu-22.04
+```
+
+x64 runner rather than `ubuntu-latest`.
+
+PyInstaller does not bundle the GNU/Linux C library (`glibc`), so binaries built on newer systems may fail on older systems. Building on the older Ubuntu 22.04 baseline improves forward compatibility with newer compatible GNU/Linux systems. This is still not a promise that every Linux distribution is certified.
+
+The build script rejects non-Linux and non-x86_64 machines so an artifact cannot silently acquire the wrong platform label.
+
+#### Automated desktop validation
+
+`scripts/build_linux_desktop.py` performs more than compilation. It:
+
+1. reads the product version from the source tree;
+2. enforces Linux x86_64 as the target;
+3. builds a PyInstaller one-file executable;
+4. runs the frozen executable with `--version` and requires an exact product-version match;
+5. runs the frozen launcher with scripted `q` input and requires menu startup and clean exit;
+6. packages the executable with license/instructions;
+7. writes the target-specific SHA-256 manifest.
+
+The release workflow independently runs `sha256sum -c` against the generated archive before uploading the `desktop-linux-dist` workflow artifact.
+
+Unit tests cover target gating, version extraction, command construction, archive contents, executable permissions, and checksum generation.
+
+#### Manual desktop validation gate
+
+Automated execution without a real TTY is not sufficient to certify the real-time games. Before the first stable release containing a Linux standalone artifact, the **CI-built** `desktop-linux-dist` artifact should be downloaded and tested on a real Linux terminal.
+
+At minimum, manual validation should confirm:
+
+- archive checksum succeeds;
+- archive extraction preserves/permits execution;
+- `./terminal-games --version` reports the expected version;
+- launcher startup and normal exit work;
+- Snake arrow input, timing, wrapping, save, and quit remain correct;
+- Tetris real-time input, drop/pause/save/quit behavior remains correct;
+- Terminal Runner jump/timing/save/quit behavior remains correct;
+- shared progress remains under `~/.terminal_games` (or an explicit override), not inside the extracted bundle.
+
+Only after that exact artifact is approved should the Stage 3 PR be merged or a later stable version be finalized.
+
+#### Release integration
+
+For relevant pull requests and manual workflow runs, the Linux desktop job is non-publishing and uploads `desktop-linux-dist` for inspection.
+
+For a future approved stable `v*` tag, the publishing job depends on both:
+
+- validated Python release artifacts;
+- validated Linux desktop artifacts.
+
+The GitHub Release then receives the wheel/source/checksum files **and** the versioned Linux standalone archive with its target-specific checksum.
+
+`v1.1.0` predates Stage 3 and therefore correctly contains only the Python artifacts. This workflow change is for later releases; it does not retroactively alter the immutable `v1.1.0` source/tag identity.
+
+#### Unsupported desktop targets
+
+Windows, macOS, and Linux ARM are not inferred from the Linux build. PyInstaller is not a cross-compiler; each target must be built and tested on its own operating system/architecture. Those targets require independent CI jobs and manual terminal-input validation before they are advertised.
 
 ## Browser play
 
@@ -174,42 +280,44 @@ The first browser prototype should be anonymous and temporary. Accounts, cloud s
 
 ## Persistence implications
 
-Desktop productization must keep progress outside the installation directory, as it does today. Packaging must not move saves into package files or repository-local paths.
+Desktop productization must keep progress outside the installation/extraction directory, as it does today. Bundling must not move saves into executable or repository-local paths.
 
 Browser sessions should not reuse the server operator's normal `~/.terminal_games` directory. Each session needs an isolated `TERMINAL_GAMES_DATA_DIR` (temporary initially; account-scoped later if cloud profiles are introduced).
 
 ## Licensing policy
 
-Terminal_Games is licensed under the MIT License. The repository carries the full terms in `LICENSE`, and package metadata declares the SPDX expression `MIT` and includes the license file in built distributions.
+Terminal_Games is licensed under the MIT License. The repository carries the full terms in `LICENSE`, and Python package metadata declares the SPDX expression `MIT` and includes the license file in built distributions.
 
-Licensing is therefore no longer an unresolved release gate for `v1.1.0`. Future third-party code or assets must still be reviewed for license compatibility, attribution requirements, and redistribution terms before they are incorporated into a public release.
+PyInstaller is introduced only as desktop build tooling. Its upstream licensing includes an exception permitting generated application bundles to be distributed under the application's own compatible license; Terminal_Games therefore remains MIT-licensed. No modified PyInstaller source is distributed by this project.
 
-The MIT license applies to Terminal_Games itself; researching or comparing other open-source projects does not transfer their code or licensing obligations into this repository unless their material is actually incorporated.
+Future third-party code, libraries, or assets must still be reviewed for license compatibility, attribution requirements, and redistribution terms before they are incorporated into a public release.
 
 ## Compatibility and quality rules
 
 Productization must follow these rules:
 
 - Do not change gameplay merely to simplify packaging.
-- Keep runtime dependencies at zero unless a concrete product feature justifies one.
-- Keep version information centralized rather than duplicated manually across files.
+- Keep game runtime dependencies at zero unless a concrete product feature justifies one.
+- Treat build-only tooling separately from runtime dependencies and pin release-critical build tools.
+- Keep version information centralized rather than duplicated manually across source files.
 - Treat installability as CI-tested behavior.
-- Treat license metadata and inclusion of the license file as CI-tested packaging behavior.
+- Treat frozen-executable startup/version behavior as CI-tested behavior for desktop targets.
+- Treat license metadata and inclusion of the license file as tested packaging behavior.
 - Do not advertise a platform, package index, binary, or web endpoint until it exists and is tested.
+- Require real-terminal manual testing for timing-sensitive desktop input before calling a target certified.
 - Keep save-schema compatibility independent from product release numbering.
-- Preserve `stable/v1.0.0`; future stable editions receive new permanent branch names.
+- Preserve `stable/v1.0.0` and `stable/v1.1.0`; future stable editions receive new permanent branch names.
 
 ## Immediate implementation target
 
-The product foundation, release automation, and `1.1.0` finalization process now provide:
+The current product state is:
 
-1. stable package/version metadata at `1.1.0` after successful release-candidate validation;
-2. the `terminal-games` console entry point and module entry point;
-3. continued support for `python3 launcher.py` as a source workflow;
-4. packaging/CLI tests and CI installation validation;
-5. installation, user, changelog, and release-strategy documentation;
-6. a dry-run release workflow for tests, distribution builds, checksums, and artifact inspection;
-7. guarded GitHub Release publication for an explicitly created matching stable tag;
-8. MIT licensing with standardized SPDX package metadata and license-file inclusion.
+1. `v1.1.0` is published and remains the latest stable GitHub Release;
+2. `main` development advances to `1.2.0.dev0` for post-release feature work;
+3. Stage 3 introduces a pinned, CI-built Linux x86_64 standalone artifact;
+4. the standalone executable is smoke-tested before archiving;
+5. the archive carries MIT license/instructions and a dedicated SHA-256 manifest;
+6. future stable-tag publication is wired to include the validated Linux artifact;
+7. the exact CI-built desktop artifact still requires manual real-terminal validation before the first stable release that advertises it.
 
-The `stable/v1.1.0` branch, `v1.1.0` Git tag, and GitHub Release remain explicit release-management actions until they are actually created from the approved finalization commit. Standalone executables, PyPI publication, and browser hosting remain later stages requiring their own tested changes and explicit decisions.
+PyPI publication, Windows/macOS/Linux-ARM desktop builds, and browser hosting remain separate future work with their own validation requirements.

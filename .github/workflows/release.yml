@@ -8,8 +8,14 @@ on:
       - "LICENSE"
       - "scripts/release_guard.py"
       - "tests/test_release_guard.py"
+      - "scripts/build_linux_desktop.py"
+      - "tests/test_linux_desktop_build.py"
+      - "requirements/desktop-linux.txt"
+      - "packaging/linux/**"
       - "pyproject.toml"
       - "terminal_games/**"
+      - "games/**"
+      - "launcher.py"
   push:
     tags:
       - "v*"
@@ -94,25 +100,61 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  desktop_linux:
+    needs: test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Linux desktop build dependency
+        run: python -m pip install -r requirements/desktop-linux.txt
+
+      - name: Build and validate Linux standalone bundle
+        run: python scripts/build_linux_desktop.py
+
+      - name: Verify Linux standalone checksum
+        working-directory: desktop-dist
+        run: sha256sum -c SHA256SUMS-linux-x86_64.txt
+
+      - name: Upload Linux standalone artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-dist
+          path: desktop-dist/
+          if-no-files-found: error
+
   publish:
-    needs: build
+    needs: [build, desktop_linux]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Download validated artifacts
+      - name: Download validated Python artifacts
         uses: actions/download-artifact@v4
         with:
           name: release-dist
           path: release-dist
 
+      - name: Download validated Linux desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-linux-dist
+          path: desktop-linux-dist
+
       - name: Create GitHub Release and upload artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release-dist/* \
+          gh release create "$GITHUB_REF_NAME" release-dist/* desktop-linux-dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "Terminal_Games $GITHUB_REF_NAME" \

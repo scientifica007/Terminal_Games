@@ -9,4 +9,5 @@ htmlcov/
 .DS_Store
 build/
 dist/
+desktop-dist/
 *.egg-info/
