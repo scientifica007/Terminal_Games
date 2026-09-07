@@ -85,6 +85,7 @@ class LinuxDesktopBundleTests(unittest.TestCase):
                 archive_path.name,
                 "terminal-games-2.0.0-linux-x86_64.tar.gz",
             )
+            self.assertEqual(checksum_path.name, "SHA256SUMS-linux-x86_64.txt")
             self.assertTrue(checksum_path.is_file())
 
             bundle_root = "terminal-games-2.0.0-linux-x86_64"
