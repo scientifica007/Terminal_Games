@@ -6,7 +6,6 @@ import argparse
 import ast
 import gzip
 import hashlib
-import os
 import platform
 from pathlib import Path, PurePosixPath
 import shutil
@@ -17,7 +16,6 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION_FILE = ROOT / "terminal_games" / "__init__.py"
-ENTRYPOINT = ROOT / "terminal_games" / "__main__.py"
 LICENSE_FILE = ROOT / "LICENSE"
 BUNDLE_README = ROOT / "packaging" / "linux" / "README.txt"
 DEFAULT_BUILD_ROOT = ROOT / "build" / "desktop-linux"
@@ -197,7 +195,7 @@ def create_bundle(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     archive_path = output_dir / f"{name}.tar.gz"
-    checksum_path = output_dir / "SHA256SUMS.txt"
+    checksum_path = output_dir / "SHA256SUMS-linux-x86_64.txt"
     archive_path.unlink(missing_ok=True)
     checksum_path.unlink(missing_ok=True)
 
