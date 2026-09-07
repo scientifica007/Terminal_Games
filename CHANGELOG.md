@@ -2,9 +2,34 @@
 
 All notable product-level changes should be recorded here. Terminal_Games uses Semantic Versioning for stable product releases.
 
+## [1.2.0] - Unreleased
+
+Development has resumed after the official `v1.1.0` release. Package metadata now uses `1.2.0.dev0` while Stage 3 desktop distribution is developed and validated.
+
+### Added
+
+- A Linux x86_64 standalone build path using pinned PyInstaller build tooling.
+- A self-contained one-file executable packaged in a versioned `tar.gz` bundle with the MIT `LICENSE` and bundle-specific launch instructions.
+- Target-specific SHA-256 verification for the Linux desktop archive.
+- Automated frozen-binary validation covering `--version` and launcher startup/quit behavior.
+- Unit tests for target gating, version extraction, PyInstaller command construction, bundle contents, executable permissions, and checksums.
+
+### Changed
+
+- The release workflow now builds the Linux x86_64 standalone bundle on relevant pull requests and manual dry runs.
+- Future validated stable-tag releases are configured to attach the Linux desktop archive and its checksum alongside wheel/source artifacts.
+- Linux desktop builds use the explicit `ubuntu-22.04` x64 runner rather than `ubuntu-latest` to keep a deliberately older glibc build baseline.
+
+### Notes
+
+- `1.2.0.dev0` is a development version, not a published stable release.
+- `v1.1.0` remains the latest official release while this Stage 3 work is reviewed and manually tested.
+- The first desktop target is Linux x86_64 only. Windows, macOS, and Linux ARM are not yet certified or distributed.
+- No PyPI publication or browser-hosted edition exists at this stage.
+
 ## [1.1.0] - 2026-09-07
 
-The `1.1.0` source state is finalized after successful `1.1.0rc1` automated and manual validation. Package metadata now uses the stable version `1.1.0`. Publication of the permanent stable branch, `v1.1.0` tag, and GitHub Release remains a separate explicitly approved release-management step.
+`v1.1.0` is the first productized Terminal_Games release. It was finalized after successful `1.1.0rc1` automated and manual validation, then published from the exact approved finalization commit through the permanent `stable/v1.1.0` branch, annotated `v1.1.0` tag, and GitHub Release.
 
 ### Added
 
@@ -31,12 +56,15 @@ The `1.1.0` source state is finalized after successful `1.1.0rc1` automated and 
 - `1.1.0rc1` passed the complete Python 3.10–3.13 CI matrix.
 - The release dry run built and reinstalled the candidate wheel and source distribution, generated SHA-256 checksums, and uploaded the validated artifacts without publishing.
 - The CI-built wheel was manually checksum-verified, installed in an isolated virtual environment, and smoke-tested across all seven games.
-- The release guard correctly rejected `1.1.0rc1` as a stable publication version and already validates an exact stable `v1.1.0` / `1.1.0` match.
+- The release guard correctly rejected `1.1.0rc1` as a stable publication version.
+- The finalized `1.1.0` state passed the same automated matrix and dry-run build.
+- The pushed `v1.1.0` tag resolved to the exact approved finalization commit, passed the guarded publishing workflow, and produced the official GitHub Release.
 
 ### Notes
 
-- This finalization entry does not itself imply that the `v1.1.0` Git tag or GitHub Release has already been created.
-- No PyPI publication, standalone binary, or browser-hosted edition exists at this stage.
+- The `v1.1.0` GitHub Release contains the Python wheel, source distribution, and SHA-256 checksum manifest.
+- `v1.1.0` predates Stage 3 and therefore does not contain a standalone desktop binary.
+- No PyPI publication or browser-hosted edition exists at this stage.
 
 ## Historical baseline: stable/v1.0.0
 
