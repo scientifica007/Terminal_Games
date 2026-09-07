@@ -82,15 +82,25 @@ No PyPI publication is implied by this stage. Commands such as `pipx install ter
 
 ### Stage 2: release automation
 
-A later release workflow should, for a release tag:
+Release automation lives in `.github/workflows/release.yml` and has two deliberately different paths.
 
-1. run the complete test suite;
-2. build source and wheel distributions;
-3. build supported standalone executables;
-4. generate checksums;
-5. create a GitHub Release and attach the artifacts.
+A manual `workflow_dispatch` run is non-publishing. It runs the supported Python test matrix, builds the source distribution and wheel, installs the built wheel for validation, generates SHA-256 checksums, and uploads the resulting files as a workflow artifact. This provides a safe dry-run path while the package version is still a development version such as `1.1.0.dev0`.
 
-Release automation is deliberately separated from the first packaging layer so we can validate installation and version semantics before automating publication.
+A push of a tag beginning with `v` enters the publishing path only after the same tests pass. Before building, `scripts/release_guard.py` requires the package version to be an exact stable `MAJOR.MINOR.PATCH` value and requires the tag to equal `v<package-version>`. A development or pre-release package version, malformed stable version, or mismatched tag fails before publication.
+
+For a validated stable tag, the workflow:
+
+1. runs the complete unit-test suite on Python 3.10, 3.11, 3.12, and 3.13;
+2. validates that the release tag exactly matches the stable product version;
+3. builds source and wheel distributions;
+4. installs the built wheel and re-validates the installed command/version metadata;
+5. generates SHA-256 checksums;
+6. uploads the release files as a GitHub Actions artifact;
+7. creates the GitHub Release and attaches the validated files.
+
+The workflow does **not** create Git tags or stable branches. Those remain explicit release-management actions and must only be performed from an approved known-good commit. The workflow also does not publish to PyPI.
+
+Standalone executables are intentionally not fabricated at this stage. The release workflow is structured so platform-specific binary build jobs can be added when Stage 3 establishes a tested desktop packaging method. Until then, a GitHub Release contains the source distribution, wheel, and checksums only.
 
 ### Stage 3: standalone desktop artifacts
 
@@ -157,13 +167,14 @@ Productization must follow these rules:
 
 ## Immediate implementation target
 
-This document authorizes the first Product/Release foundation only:
+The product foundation and release-automation layers provide:
 
-1. introduce package/version metadata targeting `1.1.0.dev0`;
-2. add the `terminal-games` console entry point and module entry point;
-3. retain `python3 launcher.py` unchanged as a supported source workflow;
-4. add packaging/CLI tests and CI installation validation;
-5. document installation and release status;
-6. add a changelog that distinguishes unreleased work from historical baselines.
+1. package/version metadata targeting `1.1.0.dev0` during development;
+2. the `terminal-games` console entry point and module entry point;
+3. continued support for `python3 launcher.py` as a source workflow;
+4. packaging/CLI tests and CI installation validation;
+5. installation, user, changelog, and release-strategy documentation;
+6. a dry-run release workflow for tests, distribution builds, checksums, and artifact inspection;
+7. guarded GitHub Release publication for a future explicitly created stable tag.
 
-Standalone executables, PyPI publication, Git tags, GitHub Releases, and browser hosting remain subsequent stages and require their own tested changes.
+Standalone executables, PyPI publication, Git tags, stable release branches, and browser hosting remain separate actions or later stages and require their own tested changes and explicit release decisions.
