@@ -2,6 +2,13 @@ name: release
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/release_guard.py"
+      - "tests/test_release_guard.py"
+      - "pyproject.toml"
+      - "terminal_games/**"
   push:
     tags:
       - "v*"
@@ -57,8 +64,8 @@ jobs:
         if: github.event_name == 'push'
         run: python scripts/release_guard.py --tag "$GITHUB_REF_NAME"
 
-      - name: Report development build version
-        if: github.event_name == 'workflow_dispatch'
+      - name: Report non-publishing build version
+        if: github.event_name != 'push'
         run: python scripts/release_guard.py
 
       - name: Install build frontend
