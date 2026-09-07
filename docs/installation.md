@@ -7,10 +7,10 @@ Terminal_Games is being prepared as a versioned installable product while preser
 The current package metadata reports:
 
 ```text
-1.1.0.dev0
+1.1.0rc1
 ```
 
-This is a development build targeting the future `v1.1.0` product release. It is not yet a published PyPI package, standalone desktop binary, Git tag, or GitHub Release.
+This is the first release candidate for the planned `v1.1.0` product release. It is intended for final validation and is not yet the stable release. The project is not yet published to PyPI and does not yet have a standalone desktop binary or a stable `v1.1.0` GitHub Release.
 
 ## Requirements
 
@@ -50,10 +50,10 @@ Check the installed product version with:
 terminal-games --version
 ```
 
-Expected development output:
+Expected release-candidate output:
 
 ```text
-terminal-games 1.1.0.dev0
+terminal-games 1.1.0rc1
 ```
 
 You can also launch the installed package as a module:
@@ -98,13 +98,26 @@ Tests and isolated environments can continue overriding the storage directory wi
 
 The current automated test matrix certifies Python 3.10 through 3.13 on Linux. Packaging is intentionally not yet advertised as fully certified on Windows or macOS; dedicated CI and real-time terminal testing should be added before those platforms are listed as supported product downloads.
 
-## Future distribution stages
+## Release-candidate validation
 
-The next product stages are expected to add:
+The repository already has guarded release automation that can run without publishing. The dry-run path:
 
-1. automated wheel/source-distribution builds;
-2. version-tag-driven GitHub Releases;
-3. standalone downloadable executables, beginning with a tested Linux target;
-4. browser play through an isolated server-side PTY connected to a terminal frontend over WebSocket.
+1. runs the supported Python test matrix;
+2. builds the source distribution and wheel;
+3. installs the built wheel and re-validates the installed command and metadata;
+4. generates SHA-256 checksums;
+5. uploads the resulting distribution files as a GitHub Actions artifact.
+
+For `1.1.0rc1`, this path is used to validate the candidate without creating a Git tag or GitHub Release.
+
+## Remaining distribution stages
+
+After a release candidate is approved, the stable release process finalizes the package version as `1.1.0`, records the release date, creates an approved stable branch and `v1.1.0` tag, and lets the guarded release workflow build and attach source/wheel/checksum artifacts to the GitHub Release.
+
+Later product stages can add:
+
+1. standalone downloadable executables, beginning with a tested Linux target;
+2. dedicated Windows/macOS certification when those platforms are actually tested;
+3. browser play through an isolated server-side PTY connected to a terminal frontend over WebSocket.
 
 See [`product-release-strategy.md`](product-release-strategy.md) for the release and browser architecture decisions.

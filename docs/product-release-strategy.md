@@ -32,7 +32,7 @@ Terminal_Games uses Semantic Versioning for product releases:
 - **MINOR**: new games or substantial backward-compatible features;
 - **PATCH**: backward-compatible fixes and small corrections.
 
-Before `v1.1.0` is actually released, package metadata may use the PEP 440 development form `1.1.0.dev0`. This means “development work targeting 1.1.0”; it is not itself a stable release.
+Before `v1.1.0` is actually released, package metadata may use PEP 440 pre-release forms. Development work used `1.1.0.dev0`; once the product entered final validation, the first release candidate became `1.1.0rc1`. Neither form is a stable release.
 
 Product versioning is separate from each game's saved-state schema. For example, the product can move from 1.1.0 to 1.2.0 while Terminal Runner's save payload remains version 3. Save-schema versions change only when persistence compatibility requires them.
 
@@ -73,7 +73,7 @@ The first product layer provides:
 - `pyproject.toml` package metadata;
 - a single source of truth for the product version;
 - the `terminal-games` console command;
-- `python -m terminal_games` support;
+- `python3 -m terminal_games` support;
 - installation instructions from a source checkout;
 - automated tests for version/CLI behavior;
 - CI validation that the repository can actually be installed as a package.
@@ -84,7 +84,7 @@ No PyPI publication is implied by this stage. Commands such as `pipx install ter
 
 Release automation lives in `.github/workflows/release.yml` and has two deliberately different paths.
 
-A manual `workflow_dispatch` run is non-publishing. It runs the supported Python test matrix, builds the source distribution and wheel, installs the built wheel for validation, generates SHA-256 checksums, and uploads the resulting files as a workflow artifact. This provides a safe dry-run path while the package version is still a development version such as `1.1.0.dev0`.
+A manual `workflow_dispatch` run is non-publishing. It runs the supported Python test matrix, builds the source distribution and wheel, installs the built wheel for validation, generates SHA-256 checksums, and uploads the resulting files as a workflow artifact. This provides a safe dry-run path while the package version is still a development or pre-release version such as `1.1.0rc1`.
 
 A push of a tag beginning with `v` enters the publishing path only after the same tests pass. Before building, `scripts/release_guard.py` requires the package version to be an exact stable `MAJOR.MINOR.PATCH` value and requires the tag to equal `v<package-version>`. A development or pre-release package version, malformed stable version, or mismatched tag fails before publication.
 
@@ -101,6 +101,21 @@ For a validated stable tag, the workflow:
 The workflow does **not** create Git tags or stable branches. Those remain explicit release-management actions and must only be performed from an approved known-good commit. The workflow also does not publish to PyPI.
 
 Standalone executables are intentionally not fabricated at this stage. The release workflow is structured so platform-specific binary build jobs can be added when Stage 3 establishes a tested desktop packaging method. Until then, a GitHub Release contains the source distribution, wheel, and checksums only.
+
+### Release-candidate validation
+
+A release candidate is an explicit pre-release package state used to validate the exact product intended for a stable release without publishing that stable release prematurely.
+
+For `v1.1.0`, the first candidate is `1.1.0rc1`. Candidate validation should include:
+
+1. the complete automated test suite;
+2. the release-workflow dry run;
+3. inspection of the built wheel, source distribution, and SHA-256 checksums;
+4. installation of the built wheel in an isolated environment;
+5. manual launch and terminal-input smoke testing, especially for real-time games;
+6. review of README, installation documentation, user documentation, changelog, and release claims.
+
+The release candidate itself does not create `stable/v1.1.0`, a `v1.1.0` tag, or a GitHub Release. If candidate validation succeeds, a separate release-finalization change sets the package version to stable `1.1.0` and records the release date before the permanent release references are created.
 
 ### Stage 3: standalone desktop artifacts
 
@@ -170,9 +185,9 @@ Productization must follow these rules:
 
 ## Immediate implementation target
 
-The product foundation and release-automation layers provide:
+The product foundation and release-automation layers now provide:
 
-1. package/version metadata targeting `1.1.0.dev0` during development;
+1. package/version metadata at release candidate `1.1.0rc1` for final validation toward `v1.1.0`;
 2. the `terminal-games` console entry point and module entry point;
 3. continued support for `python3 launcher.py` as a source workflow;
 4. packaging/CLI tests and CI installation validation;

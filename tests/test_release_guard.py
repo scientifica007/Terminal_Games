@@ -13,6 +13,10 @@ class ReleaseGuardTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not a stable"):
             release_guard.validate_release_tag("v1.1.0", "1.1.0.dev0")
 
+    def test_release_candidate_version_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "not a stable"):
+            release_guard.validate_release_tag("v1.1.0", "1.1.0rc1")
+
     def test_mismatched_tag_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "does not match"):
             release_guard.validate_release_tag("v1.2.0", "1.1.0")

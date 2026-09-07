@@ -6,13 +6,13 @@ Terminal_Games is both an actively developed game project and an emerging versio
 
 ## Current product status
 
-The current development package version is:
+The current release-candidate package version is:
 
 ```text
-1.1.0.dev0
+1.1.0rc1
 ```
 
-It is a development build toward the planned `v1.1.0` product release. The project is not yet published to PyPI and does not yet have a downloadable standalone desktop release.
+It is the first release candidate for the planned `v1.1.0` product release. It is intended for final validation and is not itself a stable release. The project is not yet published to PyPI and does not yet have a downloadable standalone desktop release.
 
 ## Requirements
 

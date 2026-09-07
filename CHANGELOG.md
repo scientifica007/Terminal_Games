@@ -4,7 +4,7 @@ All notable product-level changes should be recorded here. Terminal_Games uses S
 
 ## [1.1.0] - Unreleased
 
-The repository is currently targeting `1.1.0`. Until the release is actually cut, Python package metadata uses the development version `1.1.0.dev0`.
+The repository is currently targeting `1.1.0`. Package metadata now uses the first release-candidate version `1.1.0rc1` for final validation before the stable release is cut.
 
 ### Added
 
@@ -24,9 +24,11 @@ The repository is currently targeting `1.1.0`. Until the release is actually cut
 - Minesweeper supports the Chord action for revealed numbered cells.
 - Product versioning is now explicitly separate from per-game save-schema versions.
 - The root README is now a concise product landing page that directs players to the User Guide and Installation Guide while keeping engineering documentation discoverable.
+- Product metadata advances from development build `1.1.0.dev0` to release candidate `1.1.0rc1` for final validation.
 
 ### Notes
 
+- `1.1.0rc1` is a release candidate, not the stable `v1.1.0` release.
 - This section does not imply that `v1.1.0` has been tagged or published yet.
 - No PyPI publication, standalone binary, or browser-hosted edition exists at this stage.
 
