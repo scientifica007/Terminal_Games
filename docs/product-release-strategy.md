@@ -147,11 +147,13 @@ Desktop productization must keep progress outside the installation directory, as
 
 Browser sessions should not reuse the server operator's normal `~/.terminal_games` directory. Each session needs an isolated `TERMINAL_GAMES_DATA_DIR` (temporary initially; account-scoped later if cloud profiles are introduced).
 
-## Licensing release gate
+## Licensing policy
 
-The repository currently needs an explicit project-license decision before broad third-party distribution is treated as a formal public product release. Package metadata must not invent a license. Before `v1.1.0` is published as a downloadable public release, the owner should choose and add the intended project license and ensure third-party assets/code, if any are ever introduced, are compatible with it.
+Terminal_Games is licensed under the MIT License. The repository carries the full terms in `LICENSE`, and package metadata declares the SPDX expression `MIT` and includes the license file in built distributions.
 
-Researching MIT-licensed comparison projects does not automatically license Terminal_Games under MIT.
+Licensing is therefore no longer an unresolved release gate for `v1.1.0`. Future third-party code or assets must still be reviewed for license compatibility, attribution requirements, and redistribution terms before they are incorporated into a public release.
+
+The MIT license applies to Terminal_Games itself; researching or comparing other open-source projects does not transfer their code or licensing obligations into this repository unless their material is actually incorporated.
 
 ## Compatibility and quality rules
 
@@ -161,6 +163,7 @@ Productization must follow these rules:
 - Keep runtime dependencies at zero unless a concrete product feature justifies one.
 - Keep version information centralized rather than duplicated manually across files.
 - Treat installability as CI-tested behavior.
+- Treat license metadata and inclusion of the license file as CI-tested packaging behavior.
 - Do not advertise a platform, package index, binary, or web endpoint until it exists and is tested.
 - Keep save-schema compatibility independent from product release numbering.
 - Preserve `stable/v1.0.0`; future stable editions receive new permanent branch names.
@@ -175,6 +178,7 @@ The product foundation and release-automation layers provide:
 4. packaging/CLI tests and CI installation validation;
 5. installation, user, changelog, and release-strategy documentation;
 6. a dry-run release workflow for tests, distribution builds, checksums, and artifact inspection;
-7. guarded GitHub Release publication for a future explicitly created stable tag.
+7. guarded GitHub Release publication for a future explicitly created stable tag;
+8. MIT licensing with standardized SPDX package metadata and license-file inclusion.
 
 Standalone executables, PyPI publication, Git tags, stable release branches, and browser hosting remain separate actions or later stages and require their own tested changes and explicit release decisions.

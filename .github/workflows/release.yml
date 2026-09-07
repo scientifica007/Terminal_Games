@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/release.yml"
+      - "LICENSE"
       - "scripts/release_guard.py"
       - "tests/test_release_guard.py"
       - "pyproject.toml"
@@ -43,6 +44,7 @@ jobs:
         run: |
           terminal-games --version
           python -c "import importlib.metadata as m, terminal_games; assert m.version('terminal-games') == terminal_games.__version__"
+          python -c "import importlib.metadata as m; meta=m.metadata('terminal-games'); assert meta['License-Expression'] == 'MIT'; assert any(value.endswith('LICENSE') for value in meta.get_all('License-File', []))"
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
@@ -79,6 +81,7 @@ jobs:
           python -m pip install --force-reinstall dist/*.whl
           terminal-games --version
           python -c "import importlib.metadata as m, terminal_games; assert m.version('terminal-games') == terminal_games.__version__"
+          python -c "import importlib.metadata as m; meta=m.metadata('terminal-games'); assert meta['License-Expression'] == 'MIT'; assert any(value.endswith('LICENSE') for value in meta.get_all('License-File', []))"
 
       - name: Generate SHA-256 checksums
         working-directory: dist
