@@ -10,8 +10,8 @@ from terminal_games import cli
 
 
 class ProductVersionTests(unittest.TestCase):
-    def test_development_version_targets_v1_1_0(self) -> None:
-        self.assertEqual(terminal_games.__version__, "1.1.0.dev0")
+    def test_release_candidate_targets_v1_1_0(self) -> None:
+        self.assertEqual(terminal_games.__version__, "1.1.0rc1")
 
 
 class ProductCliTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class ProductCliTests(unittest.TestCase):
                 cli.main(["--version"])
 
         self.assertEqual(raised.exception.code, 0)
-        self.assertEqual(output.getvalue().strip(), "terminal-games 1.1.0.dev0")
+        self.assertEqual(output.getvalue().strip(), "terminal-games 1.1.0rc1")
 
     def test_no_product_options_delegate_to_existing_launcher(self) -> None:
         with patch("launcher.main") as launcher_main:
