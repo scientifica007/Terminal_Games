@@ -17,6 +17,7 @@ The repository is currently targeting `1.1.0`. Until the release is actually cut
 - A dedicated player-facing User Guide covering installation entry points, shared progress behavior, controls, scoring, and rules for all seven games.
 - CI installation validation for the packaged command.
 - Release automation with a non-publishing manual build path, release-tag validation, source/wheel artifact builds, SHA-256 checksums, and GitHub Release publication for validated stable tags.
+- MIT License with SPDX package metadata and license-file inclusion in built distributions.
 
 ### Changed
 
